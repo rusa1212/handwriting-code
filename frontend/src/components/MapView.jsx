@@ -1,14 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import { loadKakaoMap } from '../lib/loadKakaoMap'
 
-const ROUTE_STYLE = { strokeWeight: 6, strokeColor: '#7a7a7a', strokeOpacity: 0.8 }
+const ROUTE_STYLE = { strokeWeight: 6, strokeColor: '#7a7a7a', strokeOpacity: 0.8, zIndex: 1 }
+// 선택된 경로: 진하고 굵게, 다른 선보다 위에 그린다
+const SELECTED_STYLE = { strokeWeight: 8, strokeColor: '#aa3bff', strokeOpacity: 0.95, zIndex: 2 }
 
 // 지도는 props로 받은 데이터를 그리기만 한다 (상태는 부모가 가진다)
 // routes: [{ id, path: [[lat, lng], ...] }]
 // markers: [{ label, lat, lng }]
-function MapView({ center, level = 4, routes = [], markers = [] }) {
+// selectedId: 강조할 경로 id
+function MapView({ center, level = 4, routes = [], markers = [], selectedId = null }) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
+  const polylinesRef = useRef(new Map()) // 경로 id → Polyline (선택 변경 시 다시 그리지 않고 스타일만 바꾼다)
   const [ready, setReady] = useState(false)
   const [error, setError] = useState(null)
 
@@ -51,12 +55,15 @@ function MapView({ center, level = 4, routes = [], markers = [] }) {
     const { kakao } = window
 
     const overlays = []
+    const polylines = polylinesRef.current
     const bounds = new kakao.maps.LatLngBounds()
 
     for (const route of routes) {
       const path = route.path.map(([lat, lng]) => new kakao.maps.LatLng(lat, lng))
       path.forEach((p) => bounds.extend(p))
-      overlays.push(new kakao.maps.Polyline({ map, path, ...ROUTE_STYLE }))
+      const polyline = new kakao.maps.Polyline({ map, path, ...ROUTE_STYLE })
+      polylines.set(route.id, polyline)
+      overlays.push(polyline)
     }
 
     for (const m of markers) {
@@ -76,8 +83,19 @@ function MapView({ center, level = 4, routes = [], markers = [] }) {
     // 그린 것이 있으면 전부 화면에 들어오도록 범위를 맞춘다
     if (routes.length > 0 || markers.length > 0) map.setBounds(bounds)
 
-    return () => overlays.forEach((o) => o.setMap(null))
+    return () => {
+      overlays.forEach((o) => o.setMap(null))
+      polylines.clear()
+    }
   }, [ready, routes, markers])
+
+  // 선택한 경로만 강조한다. 지도 범위는 그대로 둔다
+  // (routes가 바뀌면 위 effect가 선을 새로 만든 뒤 이 effect도 다시 실행된다)
+  useEffect(() => {
+    for (const [id, polyline] of polylinesRef.current) {
+      polyline.setOptions(id === selectedId ? SELECTED_STYLE : ROUTE_STYLE)
+    }
+  }, [ready, routes, selectedId])
 
   return (
     <div className="map-wrapper">

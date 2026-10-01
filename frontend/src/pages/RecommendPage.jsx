@@ -13,6 +13,7 @@ function RecommendPage() {
   const [destination, setDestination] = useState(PLACES.at(-1))
   const [routes, setRoutes] = useState([]) // API에서 받은 경로들
   const [markers, setMarkers] = useState([]) // 검색한 출발/도착 지점 (드롭다운을 바꿔도 다음 검색 전까지 유지)
+  const [selectedId, setSelectedId] = useState(null) // 지도에서 강조할 경로
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -20,13 +21,16 @@ function RecommendPage() {
     setLoading(true)
     setError(null)
     try {
-      setRoutes(await getRoutes(origin, destination))
+      const found = await getRoutes(origin, destination)
+      setRoutes(found)
+      setSelectedId(found[0].id) // 새로 검색하면 첫 번째 경로를 선택
       setMarkers([
         { label: `출발 · ${origin.name}`, lat: origin.lat, lng: origin.lng },
         { label: `도착 · ${destination.name}`, lat: destination.lat, lng: destination.lng },
       ])
     } catch (err) {
       setRoutes([])
+      setSelectedId(null)
       setMarkers([])
       setError(err.message)
     } finally {
@@ -48,10 +52,10 @@ function RecommendPage() {
           routeCount={routes.length}
         />
         <PreferencePanel />
-        <RouteList routes={routes} />
+        <RouteList routes={routes} selectedId={selectedId} onSelect={setSelectedId} />
         <RecommendReason />
       </aside>
-      <MapView center={GUMI_STATION} routes={routes} markers={markers} />
+      <MapView center={GUMI_STATION} routes={routes} markers={markers} selectedId={selectedId} />
     </div>
   )
 }
