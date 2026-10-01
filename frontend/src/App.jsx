@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { getHealth } from './api/client'
 import AlgorithmLabPage from './pages/AlgorithmLabPage'
 import RecommendPage from './pages/RecommendPage'
 import './App.css'
@@ -13,11 +14,7 @@ function App() {
   const [backendStatus, setBackendStatus] = useState('확인 중...')
 
   useEffect(() => {
-    fetch('/api/health')
-      .then((res) => {
-        if (!res.ok) throw new Error(res.status)
-        return res.json()
-      })
+    getHealth()
       .then((data) => setBackendStatus(data.status))
       .catch(() => setBackendStatus('연결 실패'))
   }, [])
