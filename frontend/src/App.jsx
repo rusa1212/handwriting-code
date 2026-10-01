@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import KakaoMap from './components/KakaoMap'
+import MapView from './components/MapView'
 import './App.css'
 
 // 구미역 좌표
@@ -26,7 +26,7 @@ function App() {
           Backend: <code>{backendStatus}</code>
         </p>
       </header>
-      <KakaoMap center={GUMI_STATION} />
+      <MapView center={GUMI_STATION} />
     </main>
   )
 }

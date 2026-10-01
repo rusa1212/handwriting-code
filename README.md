@@ -12,6 +12,7 @@
 cd be
 .\venv\Scripts\Activate.ps1      # 가상환경 활성화
 pip install -r requirements.txt  # 최초 1회
+.\venv\Scripts\Activate.ps1
 uvicorn main:app --reload        # http://127.0.0.1:8000
 ```
 
