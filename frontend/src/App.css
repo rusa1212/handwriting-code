@@ -59,6 +59,52 @@
   font-size: 14px;
 }
 
+.field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 15px;
+
+  span {
+    width: 52px;
+    flex-shrink: 0;
+  }
+
+  select {
+    flex: 1;
+    padding: 6px 8px;
+    font: inherit;
+  }
+}
+
+.primary {
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px;
+  font: inherit;
+  color: #fff;
+  background: var(--accent);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+}
+
+.hint,
+.error {
+  margin-top: 8px;
+  font-size: 14px;
+}
+
+.error {
+  color: #d93025;
+}
+
 .map-wrapper {
   position: relative;
   flex: 1;
