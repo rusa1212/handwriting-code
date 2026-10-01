@@ -48,7 +48,7 @@ function RecommendPage() {
           routeCount={routes.length}
         />
         <PreferencePanel />
-        <RouteList />
+        <RouteList routes={routes} />
         <RecommendReason />
       </aside>
       <MapView center={GUMI_STATION} routes={routes} markers={markers} />
