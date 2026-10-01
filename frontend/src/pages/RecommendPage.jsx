@@ -12,6 +12,7 @@ function RecommendPage() {
   const [origin, setOrigin] = useState(PLACES[0]) // { name, lat, lng }
   const [destination, setDestination] = useState(PLACES.at(-1))
   const [routes, setRoutes] = useState([]) // API에서 받은 경로들
+  const [markers, setMarkers] = useState([]) // 검색한 출발/도착 지점 (드롭다운을 바꿔도 다음 검색 전까지 유지)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -20,8 +21,13 @@ function RecommendPage() {
     setError(null)
     try {
       setRoutes(await getRoutes(origin, destination))
+      setMarkers([
+        { label: `출발 · ${origin.name}`, lat: origin.lat, lng: origin.lng },
+        { label: `도착 · ${destination.name}`, lat: destination.lat, lng: destination.lng },
+      ])
     } catch (err) {
       setRoutes([])
+      setMarkers([])
       setError(err.message)
     } finally {
       setLoading(false)
@@ -45,7 +51,7 @@ function RecommendPage() {
         <RouteList />
         <RecommendReason />
       </aside>
-      <MapView center={GUMI_STATION} />
+      <MapView center={GUMI_STATION} routes={routes} markers={markers} />
     </div>
   )
 }
