@@ -83,7 +83,7 @@ function RecommendPage() {
           routeCount={routes.length}
         />
         <PreferencePanel weights={weights} onChange={setWeights} />
-        <RouteList routes={routes} selectedId={selectedId} onSelect={setSelectedId} />
+        <RouteList routes={routes} selectedId={selectedId} result={result} onSelect={setSelectedId} />
         <RecommendReason result={result} error={recommendError} />
       </aside>
       <MapView center={GUMI_STATION} routes={routes} markers={markers} selectedId={selectedId} />

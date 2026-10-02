@@ -139,11 +139,11 @@
   list-style: none;
 }
 
-/* [A] 50분
+/* [A] 50분 ★ 추천                  70점
        51.2km · 통행료 2,900원 */
 .route-card {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto 1fr auto;
   column-gap: 12px;
   align-items: center;
   width: 100%;
@@ -191,6 +191,31 @@
 
 .route-meta {
   font-size: 14px;
+}
+
+.route-best {
+  font-size: 14px;
+  color: var(--accent);
+}
+
+.route-score {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+}
+
+.reason {
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.reason-best {
+  margin-right: 6px;
+  font-weight: 600;
+  color: var(--accent);
 }
 
 /* 카카오 CustomOverlay로 마커 위에 띄우는 이름표 */

@@ -1,7 +1,8 @@
 import RouteCard from './RouteCard'
 
 // 검색한 경로들을 카드로 나열해 비교한다. 카드를 누르면 onSelect(id)
-function RouteList({ routes, selectedId, onSelect }) {
+// result: 추천 결과 { scores, best_id } (없으면 점수와 ★를 표시하지 않는다)
+function RouteList({ routes, selectedId, result, onSelect }) {
   return (
     <section className="panel">
       <h2>③ 경로 목록</h2>
@@ -14,6 +15,8 @@ function RouteList({ routes, selectedId, onSelect }) {
               key={route.id}
               route={route}
               selected={route.id === selectedId}
+              score={result?.scores[route.id]}
+              best={route.id === result?.best_id}
               onClick={() => onSelect(route.id)}
             />
           ))}
