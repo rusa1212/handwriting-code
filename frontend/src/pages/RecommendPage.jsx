@@ -13,6 +13,7 @@ function RecommendPage() {
   const [destination, setDestination] = useState(PLACES.at(-1))
   const [routes, setRoutes] = useState([]) // API에서 받은 경로들
   const [markers, setMarkers] = useState([]) // 검색한 출발/도착 지점 (드롭다운을 바꿔도 다음 검색 전까지 유지)
+  const [weights, setWeights] = useState({ time: 0.5, distance: 0.3, toll: 0.2 }) // 선호도 슬라이더
   const [selectedId, setSelectedId] = useState(null) // 지도에서 강조할 경로
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -51,7 +52,7 @@ function RecommendPage() {
           error={error}
           routeCount={routes.length}
         />
-        <PreferencePanel />
+        <PreferencePanel weights={weights} onChange={setWeights} />
         <RouteList routes={routes} selectedId={selectedId} onSelect={setSelectedId} />
         <RecommendReason />
       </aside>

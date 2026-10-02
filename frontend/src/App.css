@@ -78,6 +78,21 @@
   }
 }
 
+/* 시간  ━━━━●━━━━  50% */
+.slider {
+  input {
+    flex: 1;
+    accent-color: var(--accent);
+  }
+}
+
+.slider-share {
+  width: 40px;
+  font-size: 14px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 .primary {
   width: 100%;
   margin-top: 4px;
