@@ -1,7 +1,8 @@
 from fastapi import FastAPI, HTTPException
 
 from map_api import MapApiError, get_routes
-from schemas import Route, RoutesRequest
+from schemas import RecommendRequest, RecommendResponse, Route, RoutesRequest
+from scoring import recommend
 
 app = FastAPI()
 
@@ -20,3 +21,9 @@ def routes(req: RoutesRequest) -> list[Route]:
     except MapApiError as e:
         # 외부 API 쪽 문제이므로 502 (Bad Gateway)
         raise HTTPException(status_code=502, detail=str(e)) from e
+
+
+# LEVEL 3: 받은 경로들에 사용자 가중치를 적용해 점수·추천 경로·이유를 돌려준다
+@app.post("/api/recommend")
+def recommend_route(req: RecommendRequest) -> RecommendResponse:
+    return recommend(req.routes, req.weights)

@@ -34,3 +34,15 @@ class Weights(BaseModel):
     time: float = Field(ge=0, description="시간 중요도")
     distance: float = Field(ge=0, description="거리 중요도")
     toll: float = Field(ge=0, description="통행료 중요도")
+
+
+class RecommendRequest(BaseModel):
+    # Route를 그대로 보내도 path는 무시된다 (pydantic은 모르는 필드를 버린다)
+    routes: list[RouteMetrics] = Field(min_length=1)
+    weights: Weights
+
+
+class RecommendResponse(BaseModel):
+    scores: dict[str, float] = Field(description="경로 id → 점수 (0~100, 높을수록 좋음)")
+    best_id: str
+    reason: str
