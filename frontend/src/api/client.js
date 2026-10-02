@@ -28,3 +28,14 @@ export function getRoutes(origin, destination) {
     body: JSON.stringify({ origin, destination }),
   })
 }
+
+// routes: getRoutes 결과, weights: { time, distance, toll }
+// 반환: { scores: { [id]: 0~100 }, best_id, reason }
+export function recommend(routes, weights) {
+  // 점수 계산에 좌표는 필요 없으므로 빼고 보낸다 (경로 하나에 좌표가 수천 개)
+  const metrics = routes.map(({ id, distance, duration, toll }) => ({ id, distance, duration, toll }))
+  return request('/api/recommend', {
+    method: 'POST',
+    body: JSON.stringify({ routes: metrics, weights }),
+  })
+}
