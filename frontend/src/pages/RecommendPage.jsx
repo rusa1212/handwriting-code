@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { getRoutes, recommend } from '../api/client'
-import { GUMI_STATION, PLACES } from '../constants'
+import { KOREA_CENTER, KOREA_LEVEL } from '../constants'
 import MapView from '../components/MapView'
 import PreferencePanel from '../components/PreferencePanel'
 import RecommendReason from '../components/RecommendReason'
@@ -9,8 +9,8 @@ import SearchPanel from '../components/SearchPanel'
 
 // 경로 추천 탭 (LEVEL 1~3, 5)
 function RecommendPage() {
-  const [origin, setOrigin] = useState(PLACES[0]) // { name, lat, lng } 또는 null (검색해서 고르기 전)
-  const [destination, setDestination] = useState(PLACES.at(-1))
+  const [origin, setOrigin] = useState(null) // { name, lat, lng } 또는 null (검색해서 고르기 전)
+  const [destination, setDestination] = useState(null)
   const [routes, setRoutes] = useState([]) // API에서 받은 경로들
   const [weights, setWeights] = useState({ time: 0.5, distance: 0.3, toll: 0.2 }) // 선호도 슬라이더
   const [result, setResult] = useState(null) // { scores, best_id, reason }
@@ -114,7 +114,6 @@ function RecommendPage() {
           onOriginChange={handleOriginChange}
           onDestinationChange={handleDestinationChange}
           onSwap={handleSwap}
-          center={GUMI_STATION}
           onSearch={handleSearch}
           loading={loading}
           error={error}
@@ -124,7 +123,7 @@ function RecommendPage() {
         <RouteList routes={routes} selectedId={selectedId} result={result} onSelect={setSelectedId} />
         <RecommendReason result={result} error={recommendError} />
       </aside>
-      <MapView center={GUMI_STATION} routes={routes} markers={markers} selectedId={selectedId} />
+      <MapView center={KOREA_CENTER} level={KOREA_LEVEL} routes={routes} markers={markers} selectedId={selectedId} />
     </div>
   )
 }

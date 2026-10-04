@@ -81,7 +81,13 @@ function MapView({ center, level = 4, routes = [], markers = [], selectedId = nu
     }
 
     // 그린 것이 있으면 전부 화면에 들어오도록 범위를 맞춘다
-    if (routes.length > 0 || markers.length > 0) map.setBounds(bounds)
+    // 핀 하나만 있으면 범위가 점이 되어 최대로 확대되므로, 그 위치로 이동만 하고 적당히 확대한다
+    if (routes.length === 0 && markers.length === 1) {
+      map.setCenter(new kakao.maps.LatLng(markers[0].lat, markers[0].lng))
+      map.setLevel(5)
+    } else if (routes.length > 0 || markers.length > 0) {
+      map.setBounds(bounds)
+    }
 
     return () => {
       overlays.forEach((o) => o.setMap(null))

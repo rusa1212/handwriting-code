@@ -90,7 +90,8 @@ SearchPanel
 - `markers`는 상태가 아니라 `origin`/`destination`에서 `useMemo`로 만든다.
 - 장소를 바꾸거나 ⇅ 하면 이전 경로·추천은 새 핀과 맞지 않으므로 지운다 (`clearResults`).
 - 경로 검색 중에 장소를 바꾸면 그 응답은 버린다 (`searchIdRef`).
-- `PLACES`는 처음 화면의 기본 출발지/목적지로만 쓴다. 빠른 선택 버튼은 만들지 않았다.
+- 구미 기본값을 없앴다: `PLACES`·`GUMI_STATION` 삭제, 출발지/목적지는 빈 상태로 시작, 지도는 전국(`KOREA_CENTER`, level 13)으로 시작, 검색은 기준 좌표 없이 전국 대상.
+- 핀이 하나뿐이면 `setBounds` 대신 그 위치로 이동 + level 5 (점 하나로 범위를 맞추면 최대로 확대된다).
 
 ---
 

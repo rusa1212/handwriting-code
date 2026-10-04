@@ -6,18 +6,18 @@ function isSamePlace(a, b) {
 }
 
 // 출발지/목적지 검색 + 검색 버튼. 상태는 RecommendPage가 가진다
-function SearchPanel({ origin, destination, onOriginChange, onDestinationChange, onSwap, center, onSearch, loading, error, routeCount }) {
+function SearchPanel({ origin, destination, onOriginChange, onDestinationChange, onSwap, onSearch, loading, error, routeCount }) {
   const samePlace = isSamePlace(origin, destination)
   const canSearch = origin && destination && !samePlace && !loading
 
   return (
     <section className="panel">
       <h2>① 출발지 / 목적지</h2>
-      <PlaceSearchInput label="출발지" value={origin} onChange={onOriginChange} center={center} />
+      <PlaceSearchInput label="출발지" value={origin} onChange={onOriginChange} />
       <button type="button" className="swap-button" onClick={onSwap} title="출발지와 목적지 바꾸기">
         ⇅
       </button>
-      <PlaceSearchInput label="목적지" value={destination} onChange={onDestinationChange} center={center} />
+      <PlaceSearchInput label="목적지" value={destination} onChange={onDestinationChange} />
       <button type="button" className="primary" onClick={onSearch} disabled={!canSearch}>
         {loading ? '검색 중...' : '경로 검색'}
       </button>
