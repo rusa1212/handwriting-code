@@ -7,7 +7,7 @@ function isSamePlace(a, b) {
 
 // 출발지/목적지 검색 + 검색 버튼. 상태는 RecommendPage가 가진다
 // pickTarget: 지도 클릭으로 고르는 중인 칸 ('origin' | 'destination' | null)
-function SearchPanel({ origin, destination, onOriginChange, onDestinationChange, onSwap, pickTarget, onPickTargetChange, pickLoading, onSearch, loading, error, routeCount }) {
+function SearchPanel({ origin, destination, onOriginChange, onDestinationChange, onSwap, pickTarget, onPickTargetChange, pickLoading, onLocate, locating, onSearch, loading, error, routeCount }) {
   const samePlace = isSamePlace(origin, destination)
   const canSearch = origin && destination && !samePlace && !loading
 
@@ -21,6 +21,9 @@ function SearchPanel({ origin, destination, onOriginChange, onDestinationChange,
         picking={pickTarget === 'origin'}
         onPickOnMap={() => onPickTargetChange(pickTarget === 'origin' ? null : 'origin')}
       />
+      <button type="button" className="link-button" onClick={onLocate} disabled={locating}>
+        {locating ? '현재 위치 확인 중...' : '◎ 현재 위치를 출발지로'}
+      </button>
       <button type="button" className="swap-button" onClick={onSwap} title="출발지와 목적지 바꾸기">
         ⇅
       </button>

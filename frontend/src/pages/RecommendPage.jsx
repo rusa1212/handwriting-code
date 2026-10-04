@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { getRoutes, recommend, reverseGeocode } from '../api/client'
 import { KOREA_CENTER, KOREA_LEVEL } from '../constants'
+import { getCurrentPosition } from '../lib/geolocation'
 import MapView from '../components/MapView'
 import PreferencePanel from '../components/PreferencePanel'
 import RecommendReason from '../components/RecommendReason'
@@ -22,7 +23,9 @@ function RecommendPage() {
   const searchIdRef = useRef(0) // 검색 중에 장소를 바꾸면 그 검색의 응답은 버린다
   const [pickTarget, setPickTarget] = useState(null) // 지도 클릭으로 고르는 중인 칸: 'origin' | 'destination' | null
   const [pickLoading, setPickLoading] = useState(false) // 찍은 지점의 주소를 받아오는 중
-  const pickIdRef = useRef(0) // 주소를 받는 중에 다시 찍거나 취소하면 이전 응답은 버린다
+  const [locating, setLocating] = useState(false) // 현재 위치를 확인하는 중
+  // 주소를 받는 중에 다시 찍거나 취소하면 이전 응답은 버린다 (현재 위치 확인과 같이 쓴다: 나중에 시작한 쪽만 반영)
+  const pickIdRef = useRef(0)
 
   // 경로나 가중치가 바뀌면 추천을 다시 받는다
   // 슬라이더를 끄는 동안 요청이 쏟아지지 않도록 마지막 변경 후 300ms 기다렸다 보낸다 (debounce)
@@ -86,6 +89,7 @@ function RecommendPage() {
   function handlePickTargetChange(target) {
     pickIdRef.current++
     setPickLoading(false)
+    setLocating(false)
     setPickTarget(target)
   }
 
@@ -105,6 +109,28 @@ function RecommendPage() {
       setError(err.message)
     } finally {
       if (pickId === pickIdRef.current) setPickLoading(false)
+    }
+  }
+
+  // 현재 위치 → 주소로 바꿔 출발지에 넣는다
+  async function handleLocate() {
+    const pickId = ++pickIdRef.current
+    setPickTarget(null) // 지도에서 고르는 중이었다면 끈다
+    setPickLoading(false)
+    setLocating(true)
+    setError(null)
+    try {
+      const latLng = await getCurrentPosition()
+      if (pickId !== pickIdRef.current) return
+      // 주소 변환이 실패해도 좌표는 쓸 수 있으므로 이름만 "현재 위치"로 둔다
+      const place = await reverseGeocode(latLng).catch(() => ({ name: '현재 위치', ...latLng }))
+      if (pickId !== pickIdRef.current) return
+      handleOriginChange(place)
+    } catch (err) {
+      if (pickId !== pickIdRef.current) return
+      setError(err.message)
+    } finally {
+      if (pickId === pickIdRef.current) setLocating(false)
     }
   }
 
@@ -148,6 +174,8 @@ function RecommendPage() {
           pickTarget={pickTarget}
           onPickTargetChange={handlePickTargetChange}
           pickLoading={pickLoading}
+          onLocate={handleLocate}
+          locating={locating}
           onSearch={handleSearch}
           loading={loading}
           error={error}
