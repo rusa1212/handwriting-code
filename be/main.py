@@ -1,7 +1,7 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 
-from map_api import MapApiError, get_routes
-from schemas import RecommendRequest, RecommendResponse, Route, RoutesRequest
+from map_api import MapApiError, get_routes, reverse_geocode, search_places
+from schemas import Place, PlaceCandidate, RecommendRequest, RecommendResponse, Route, RoutesRequest
 from scoring import recommend
 
 app = FastAPI()
@@ -11,6 +11,31 @@ app = FastAPI()
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+
+
+# 장소명/주소로 출발지·목적지 후보를 찾는다. lat, lng를 주면 그 근처가 먼저 나온다
+@app.get("/api/places")
+def places(
+    q: str = Query(min_length=1),
+    lat: float | None = None,
+    lng: float | None = None,
+) -> list[PlaceCandidate]:
+    try:
+        return search_places(q, lat, lng)
+    except MapApiError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+
+
+# 지도에서 찍은 좌표를 주소 이름이 붙은 Place로 바꾼다
+@app.get("/api/places/reverse")
+def places_reverse(
+    lat: float = Query(ge=-90, le=90),
+    lng: float = Query(ge=-180, le=180),
+) -> Place:
+    try:
+        return reverse_geocode(lat, lng)
+    except MapApiError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
 
 
 # LEVEL 1~2: 출발지 → 목적지 경로 목록 (대안 경로 포함)

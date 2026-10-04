@@ -10,6 +10,13 @@ class Place(BaseModel):
     lng: float
 
 
+class PlaceCandidate(Place):
+    """장소 검색 결과 하나. 사용자가 고르면 Place로 그대로 쓸 수 있다"""
+
+    id: str
+    address: str = Field(description="도로명 주소 (없으면 지번 주소)")
+
+
 class RoutesRequest(BaseModel):
     origin: Place
     destination: Place
