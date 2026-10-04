@@ -31,6 +31,11 @@ export function searchPlaces(q, center) {
   return request(`/api/places?${params}`)
 }
 
+// 지도에서 찍은 좌표 → { name(주소), lat, lng }
+export function reverseGeocode({ lat, lng }) {
+  return request(`/api/places/reverse?${new URLSearchParams({ lat, lng })}`)
+}
+
 // origin, destination: { name, lat, lng }
 // 반환: [{ id, distance(m), duration(초), toll(원), path: [[lat, lng], ...] }]
 export function getRoutes(origin, destination) {

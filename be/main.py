@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Query
 
-from map_api import MapApiError, get_routes, search_places
-from schemas import PlaceCandidate, RecommendRequest, RecommendResponse, Route, RoutesRequest
+from map_api import MapApiError, get_routes, reverse_geocode, search_places
+from schemas import Place, PlaceCandidate, RecommendRequest, RecommendResponse, Route, RoutesRequest
 from scoring import recommend
 
 app = FastAPI()
@@ -22,6 +22,18 @@ def places(
 ) -> list[PlaceCandidate]:
     try:
         return search_places(q, lat, lng)
+    except MapApiError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+
+
+# 지도에서 찍은 좌표를 주소 이름이 붙은 Place로 바꾼다
+@app.get("/api/places/reverse")
+def places_reverse(
+    lat: float = Query(ge=-90, le=90),
+    lng: float = Query(ge=-180, le=180),
+) -> Place:
+    try:
+        return reverse_geocode(lat, lng)
     except MapApiError as e:
         raise HTTPException(status_code=502, detail=str(e)) from e
 

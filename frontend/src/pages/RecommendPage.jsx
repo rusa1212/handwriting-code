@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { getRoutes, recommend } from '../api/client'
+import { getRoutes, recommend, reverseGeocode } from '../api/client'
 import { KOREA_CENTER, KOREA_LEVEL } from '../constants'
 import MapView from '../components/MapView'
 import PreferencePanel from '../components/PreferencePanel'
@@ -20,6 +20,9 @@ function RecommendPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const searchIdRef = useRef(0) // 검색 중에 장소를 바꾸면 그 검색의 응답은 버린다
+  const [pickTarget, setPickTarget] = useState(null) // 지도 클릭으로 고르는 중인 칸: 'origin' | 'destination' | null
+  const [pickLoading, setPickLoading] = useState(false) // 찍은 지점의 주소를 받아오는 중
+  const pickIdRef = useRef(0) // 주소를 받는 중에 다시 찍거나 취소하면 이전 응답은 버린다
 
   // 경로나 가중치가 바뀌면 추천을 다시 받는다
   // 슬라이더를 끄는 동안 요청이 쏟아지지 않도록 마지막 변경 후 300ms 기다렸다 보낸다 (debounce)
@@ -80,6 +83,31 @@ function RecommendPage() {
     clearResults()
   }
 
+  function handlePickTargetChange(target) {
+    pickIdRef.current++
+    setPickLoading(false)
+    setPickTarget(target)
+  }
+
+  // 지점 선택 모드에서 지도를 클릭하면 좌표 → 주소로 바꿔 해당 칸에 넣는다
+  async function handleMapClick(latLng) {
+    const pickId = ++pickIdRef.current
+    const target = pickTarget
+    setPickLoading(true)
+    try {
+      const place = await reverseGeocode(latLng)
+      if (pickId !== pickIdRef.current) return
+      if (target === 'origin') handleOriginChange(place)
+      else handleDestinationChange(place)
+      setPickTarget(null)
+    } catch (err) {
+      if (pickId !== pickIdRef.current) return
+      setError(err.message)
+    } finally {
+      if (pickId === pickIdRef.current) setPickLoading(false)
+    }
+  }
+
   function handleSwap() {
     setOrigin(destination)
     setDestination(origin)
@@ -117,6 +145,9 @@ function RecommendPage() {
           onOriginChange={handleOriginChange}
           onDestinationChange={handleDestinationChange}
           onSwap={handleSwap}
+          pickTarget={pickTarget}
+          onPickTargetChange={handlePickTargetChange}
+          pickLoading={pickLoading}
           onSearch={handleSearch}
           loading={loading}
           error={error}
@@ -132,6 +163,7 @@ function RecommendPage() {
         routes={routes}
         markers={markers}
         selectedId={selectedId}
+        onMapClick={pickTarget ? handleMapClick : null}
       />
     </div>
   )

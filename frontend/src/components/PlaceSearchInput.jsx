@@ -4,7 +4,8 @@ import { searchPlaces } from '../api/client'
 // 장소 검색 입력: Enter 또는 🔍 → 후보 목록 → 클릭하면 선택
 // value: 선택된 Place({ name, lat, lng }) 또는 null
 // center: 검색 기준 좌표 (그 근처 장소가 먼저 나온다)
-function PlaceSearchInput({ label, value, onChange, center }) {
+// onPickOnMap: 📍 버튼을 누르면 호출 (지도 클릭으로 고르기), picking: 지금 이 칸을 지도에서 고르는 중인지
+function PlaceSearchInput({ label, value, onChange, center, onPickOnMap, picking = false }) {
   const [query, setQuery] = useState(value?.name ?? '')
   const [prevValue, setPrevValue] = useState(value)
   const [candidates, setCandidates] = useState([])
@@ -76,6 +77,14 @@ function PlaceSearchInput({ label, value, onChange, center }) {
         />
         <button type="button" className="icon-button" onClick={handleSearch} disabled={loading || !query.trim()} title="검색">
           {loading ? '…' : '🔍'}
+        </button>
+        <button
+          type="button"
+          className={`icon-button${picking ? ' active' : ''}`}
+          onClick={onPickOnMap}
+          title={picking ? '지도에서 고르기 취소' : '지도에서 고르기'}
+        >
+          📍
         </button>
       </label>
       {error && <p className="error">{error}</p>}

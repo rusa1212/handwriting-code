@@ -13,7 +13,7 @@
 | 2 | `client.js`에 `searchPlaces` 추가 | 필수 | ✅ 완료 |
 | 3 | `PlaceSearchInput`으로 드롭다운 대체 | 필수 | ✅ 완료 |
 | 4 | 좌표로 `samePlace` 비교, ⇅ 바꾸기, 미리보기 핀 | 필수 | ✅ 완료 |
-| 5 | 지도 클릭으로 지점 선택 + `/api/places/reverse` | 선택 | ⬜ |
+| 5 | 지도 클릭으로 지점 선택 + `/api/places/reverse` | 선택 | ✅ 완료 |
 | 6 | 현재 위치 버튼 | 선택 | ⬜ |
 
 3단계까지 끝나면 "아무 장소나 검색해서 경로 찾기"가 동작한다.
@@ -25,7 +25,7 @@
 | 엔드포인트 | 요청 | 응답 | 상태 |
 |---|---|---|---|
 | `GET /api/places?q=구미역&lat=..&lng=..` | 검색어 + (선택) 기준 좌표 | `[{ id, name, address, lat, lng }]` (최대 15개) | ✅ |
-| `GET /api/places/reverse?lat=..&lng=..` | 좌표 | `{ name, lat, lng }` (name은 주소) | 5단계 |
+| `GET /api/places/reverse?lat=..&lng=..` | 좌표 | `{ name, lat, lng }` (name은 주소) | ✅ |
 
 - `webpagePlan.md`의 `GET /api/geocode`(결과 1개)는 쓰지 않는다. "스타벅스", "시청"처럼 같은 이름이 여러 곳이면 첫 결과가 엉뚱할 수 있으므로 **후보 목록을 주고 사용자가 고른다.**
 - `lat`, `lng`에 지도 중심을 넘기면 가까운 장소가 위로 온다.
@@ -95,7 +95,7 @@ SearchPanel
 
 ---
 
-## 5단계 (선택) 지도 클릭으로 지점 선택
+## 5단계 ✅ (선택) 지도 클릭으로 지점 선택
 
 - 백엔드: `reverse_geocode(lat, lng)`
   - `GET https://dapi.kakao.com/v2/local/geo/coord2address.json?x=경도&y=위도`
@@ -110,6 +110,13 @@ SearchPanel
 
   effect 정리 함수에서 `kakao.maps.event.removeListener`로 해제한다.
 - "지도에서 출발지 선택" 버튼으로 모드를 켜고, 클릭 → `reverseGeocode` → `setOrigin`
+
+구현 메모
+- 입력칸마다 📍 버튼. 누르면 `pickTarget`('origin' | 'destination')이 켜지고, 다시 누르면 취소.
+- `pickTarget`이 있을 때만 `MapView`에 `onMapClick`을 넘긴다 → 그때만 클릭 리스너 등록 + 십자 커서.
+- 클릭 → `reverseGeocode` → 기존 `handleOriginChange`/`handleDestinationChange`로 넣는다 (핀, 확대, 결과 초기화가 그대로 동작).
+- 주소가 없는 지점(바다, 해변 등)은 오류 대신 이름을 "지도에서 고른 위치"로 둔다.
+- 주소를 받는 중에 다시 찍거나 취소하면 이전 응답은 버린다 (`pickIdRef`).
 
 ---
 

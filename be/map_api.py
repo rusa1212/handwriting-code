@@ -5,6 +5,7 @@ from schemas import Place, PlaceCandidate, Route
 
 DIRECTIONS_URL = "https://apis-navi.kakaomobility.com/v1/directions"
 KEYWORD_SEARCH_URL = "https://dapi.kakao.com/v2/local/search/keyword.json"
+COORD_TO_ADDRESS_URL = "https://dapi.kakao.com/v2/local/geo/coord2address.json"
 
 
 class MapApiError(Exception):
@@ -94,3 +95,19 @@ def search_places(query: str, lat: float | None = None, lng: float | None = None
         )
         for doc in data["documents"]
     ]
+
+
+def reverse_geocode(lat: float, lng: float) -> Place:
+    """좌표 → 주소. 지도에서 찍은 지점의 이름으로 도로명 주소(없으면 지번 주소)를 쓴다."""
+    data = _kakao_get(COORD_TO_ADDRESS_URL, {"x": lng, "y": lat}, "주소 변환")
+
+    # 바다 위처럼 주소가 없는 지점이면 documents가 비어 있다. 좌표는 그대로 쓸 수 있으므로 오류로 보지 않는다
+    name = "지도에서 고른 위치"
+    if data["documents"]:
+        doc = data["documents"][0]
+        road, jibun = doc.get("road_address"), doc.get("address")
+        if road:
+            name = road["address_name"]
+        elif jibun:
+            name = jibun["address_name"]
+    return Place(name=name, lat=lat, lng=lng)

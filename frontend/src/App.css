@@ -328,3 +328,9 @@
   color: var(--text-h);
   background: var(--code-bg);
 }
+
+/* 📍 지도에서 고르는 중 */
+.icon-button.active {
+  background: var(--accent-bg);
+  border-color: var(--accent);
+}

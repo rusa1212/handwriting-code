@@ -9,7 +9,8 @@ const SELECTED_STYLE = { strokeWeight: 8, strokeColor: '#aa3bff', strokeOpacity:
 // routes: [{ id, path: [[lat, lng], ...] }]
 // markers: [{ label, lat, lng }]
 // selectedId: 강조할 경로 id
-function MapView({ center, level = 4, routes = [], markers = [], selectedId = null }) {
+// onMapClick: ({ lat, lng }) => void, 넘기면 지도 클릭으로 지점을 고를 수 있다
+function MapView({ center, level = 4, routes = [], markers = [], selectedId = null, onMapClick = null }) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
   const polylinesRef = useRef(new Map()) // 경로 id → Polyline (선택 변경 시 다시 그리지 않고 스타일만 바꾼다)
@@ -89,6 +90,22 @@ function MapView({ center, level = 4, routes = [], markers = [], selectedId = nu
       polylines.clear()
     }
   }, [ready, routes, markers])
+
+  // onMapClick이 있을 때만 지도 클릭을 받는다 (지점 선택 모드). 커서도 십자 모양으로 바꾼다
+  useEffect(() => {
+    const map = mapRef.current
+    if (!ready || !map || !onMapClick) return
+    const { kakao } = window
+
+    const handleClick = (e) => onMapClick({ lat: e.latLng.getLat(), lng: e.latLng.getLng() })
+    kakao.maps.event.addListener(map, 'click', handleClick)
+    map.setCursor('crosshair')
+
+    return () => {
+      kakao.maps.event.removeListener(map, 'click', handleClick)
+      map.setCursor('')
+    }
+  }, [ready, onMapClick])
 
   // 선택한 경로만 강조한다. 지도 범위는 그대로 둔다
   // (routes가 바뀌면 위 effect가 선을 새로 만든 뒤 이 effect도 다시 실행된다)
