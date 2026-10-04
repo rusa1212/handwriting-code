@@ -11,6 +11,7 @@ import SearchPanel from '../components/SearchPanel'
 function RecommendPage() {
   const [origin, setOrigin] = useState(null) // { name, lat, lng } 또는 null (검색해서 고르기 전)
   const [destination, setDestination] = useState(null)
+  const [focus, setFocus] = useState(null) // 마지막으로 고른 장소: 지도를 그곳으로 확대한다
   const [routes, setRoutes] = useState([]) // API에서 받은 경로들
   const [weights, setWeights] = useState({ time: 0.5, distance: 0.3, toll: 0.2 }) // 선호도 슬라이더
   const [result, setResult] = useState(null) // { scores, best_id, reason }
@@ -69,11 +70,13 @@ function RecommendPage() {
 
   function handleOriginChange(place) {
     setOrigin(place)
+    if (place) setFocus(place)
     clearResults()
   }
 
   function handleDestinationChange(place) {
     setDestination(place)
+    if (place) setFocus(place)
     clearResults()
   }
 
@@ -123,7 +126,13 @@ function RecommendPage() {
         <RouteList routes={routes} selectedId={selectedId} result={result} onSelect={setSelectedId} />
         <RecommendReason result={result} error={recommendError} />
       </aside>
-      <MapView center={KOREA_CENTER} level={KOREA_LEVEL} routes={routes} markers={markers} selectedId={selectedId} />
+      <MapView
+        center={focus ?? KOREA_CENTER}
+        level={focus ? 4 : KOREA_LEVEL}
+        routes={routes}
+        markers={markers}
+        selectedId={selectedId}
+      />
     </div>
   )
 }
