@@ -71,10 +71,100 @@
     flex-shrink: 0;
   }
 
-  select {
+  select,
+  input[type='text'] {
     flex: 1;
+    min-width: 0;
     padding: 6px 8px;
     font: inherit;
+  }
+
+  /* 후보를 골라 좌표가 정해진 상태 */
+  input.picked {
+    border-color: var(--accent);
+  }
+}
+
+/* 출발지/목적지 검색 */
+.place-search {
+  position: relative;
+}
+
+.icon-button {
+  padding: 6px 8px;
+  font: inherit;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+}
+
+/* 후보 목록: 아래 입력칸을 밀지 않고 위에 겹쳐 띄운다 */
+.candidates {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 60px;
+  z-index: 10;
+  max-height: 280px;
+  margin: -4px 0 0;
+  padding: 4px 0;
+  overflow-y: auto;
+  list-style: none;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 15%);
+}
+
+.candidate {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 6px 10px;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--accent-bg);
+  }
+}
+
+.candidate-name {
+  font-size: 15px;
+  color: var(--text-h);
+}
+
+.candidate-address,
+.candidate-empty {
+  font-size: 13px;
+}
+
+.candidate-empty {
+  padding: 6px 10px;
+}
+
+.swap-button {
+  display: block;
+  margin: -4px 0 4px 60px;
+  padding: 0 8px;
+  font-size: 16px;
+  color: var(--text);
+  background: none;
+  border: none;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--accent);
   }
 }
 

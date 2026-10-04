@@ -20,6 +20,17 @@ export function getHealth() {
   return request('/api/health')
 }
 
+// center: { lat, lng } (선택) → 그 근처 장소가 먼저 나온다
+// 반환: [{ id, name, address, lat, lng }] (결과가 없으면 [])
+export function searchPlaces(q, center) {
+  const params = new URLSearchParams({ q }) // 한글 검색어도 인코딩된다
+  if (center) {
+    params.set('lat', center.lat)
+    params.set('lng', center.lng)
+  }
+  return request(`/api/places?${params}`)
+}
+
 // origin, destination: { name, lat, lng }
 // 반환: [{ id, distance(m), duration(초), toll(원), path: [[lat, lng], ...] }]
 export function getRoutes(origin, destination) {
