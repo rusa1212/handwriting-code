@@ -42,7 +42,7 @@
 ```
 
 - 전국을 받으면 너무 크므로 **구미시 일부 영역만** 받는다.
-- OSM 데이터를 받는 방법은 아직 정하지 않았다. (예: `osmnx`로 받아 JSON으로 저장해 두고 서버 시작 시 읽기)
+- OSM 데이터는 Overpass API를 `httpx`로 호출해 한 번 받아 JSON으로 저장해 두고, 서버는 그 파일을 읽는다. (`osmnx`는 `geopandas` 등 큰 패키지가 따라와서 쓰지 않는다)
 - 받아온 그래프는 일방통행(`oneway`)을 반영해 **방향 그래프**로 두는 것을 기본으로 한다.
 
 ---
@@ -67,7 +67,7 @@
 |---|---|---|
 | 1-1 | `Graph` 자료구조 + A~G 예제 그래프 (`python graph.py`로 확인) | ✅ 완료 |
 | 1-2 | 하버사인 거리 + 좌표 → 가장 가까운 노드 찾기 | ✅ 완료 |
-| 1-3 | OSM에서 구미 일부 도로망을 받아 JSON으로 저장 | ⬜ |
+| 1-3 | OSM에서 구미 일부 도로망을 받아 JSON으로 저장 (`python fetch_osm.py`) | ✅ 완료 |
 | 1-4 | JSON → `Graph` 읽기, 노드/간선 수 확인 | ⬜ |
 
 - 인접 리스트(딕셔너리)로 표현: `adj = { node_id: [(neighbor_id, weight), ...] }`
@@ -76,6 +76,23 @@
 - 예제 그래프의 가중치는 직선거리보다 작지 않게 정했다 (A\* 휴리스틱이 최단 경로를 보장하는지 검증할 때 필요). `python graph.py`가 간선마다 이를 확인해 출력한다.
 - `haversine(lat1, lng1, lat2, lng2)`: 두 좌표의 직선거리(m). A\* 휴리스틱으로도 쓴다.
 - `Graph.nearest_node(lat, lng)` → `(node_id, 거리 m)`: 전체 노드를 비교한다 (수천 개는 충분히 빠름). 너무 먼지(그래프 영역 밖)는 API 쪽에서 거리로 판단한다.
+
+### 1-3 OSM 내려받기 (`be/fetch_osm.py` → `be/data/gumi_roads.json`)
+
+- Overpass API(무료, 키 없음)로 **구미역 중심 2km × 2km** 영역의 자동차 도로만 받는다.
+  - 포함: `motorway`, `trunk`, `primary`, `secondary`, `tertiary`, `unclassified`, `residential`, `*_link`, `living_street`
+  - 제외: 인도, 자전거길, 계단, 주차장 통로(`service`) 등
+- 저장 형식: `{ attribution, bbox, nodes: { id: [lat, lng] }, ways: [{ id, nodes: [node_id...], tags }] }`
+  - 태그는 `highway`, `oneway`, `maxspeed`, `name`, `junction`만 남긴다.
+- 영역 밖까지 이어지는 도로는 잘리지 않고 끝까지 들어온다.
+- 받은 결과 (2026-10-07): 도로 346개, 점 1,423개, 111KB, 일방통행 76개
+- 서버는 이 파일만 읽는다. 영역을 바꿀 때만 다시 실행한다.
+
+주의할 점:
+
+- 기본 User-Agent(`python-httpx`)는 **406으로 거절**되므로 User-Agent를 직접 넣는다.
+- 공용 서버가 바쁘면 **504("server is probably too busy")** 가 자주 난다. 잠시 기다렸다 서버를 바꿔 가며 다시 시도하게 했다 (0 → 5 → 15 → 30 → 60초).
+- 화면에 표시할 때 "© OpenStreetMap contributors" 출처를 적어야 한다 (ODbL).
 
 ## 2단계 ⬜ 탐색 알고리즘 (`be/search.py`)
 
