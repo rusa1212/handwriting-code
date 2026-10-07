@@ -28,6 +28,19 @@ def haversine(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
     return 2 * EARTH_RADIUS_M * math.asin(math.sqrt(a))
 
 
+def _reachable(start: NodeId, adj: dict[NodeId, list[NodeId]], skip: set[NodeId]) -> set[NodeId]:
+    """start에서 간선을 따라 갈 수 있는 노드 전부 (skip에 든 노드는 지나가지 않는다)"""
+    seen = {start}
+    stack = [start]
+    while stack:
+        u = stack.pop()
+        for v in adj[u]:
+            if v not in seen and v not in skip:
+                seen.add(v)
+                stack.append(v)
+    return seen
+
+
 class Graph:
     def __init__(self) -> None:
         self.coords: dict[NodeId, tuple[float, float]] = {}  # node_id → (lat, lng)
@@ -64,6 +77,38 @@ class Graph:
             ((node_id, haversine(lat, lng, n_lat, n_lng)) for node_id, (n_lat, n_lng) in self.coords.items()),
             key=lambda item: item[1],
         )
+
+    def keep_only(self, node_ids: set[NodeId]) -> None:
+        """node_ids에 든 노드만 남기고, 지운 노드로 이어지는 간선도 지운다"""
+        self.coords = {n: c for n, c in self.coords.items() if n in node_ids}
+        self.adj = {n: [(v, w) for v, w in edges if v in node_ids] for n, edges in self.adj.items() if n in node_ids}
+
+    def neighbor_lists(self) -> tuple[dict[NodeId, list[NodeId]], dict[NodeId, list[NodeId]]]:
+        """가중치를 뺀 (정방향, 역방향) 이웃 목록. 역방향은 "이 노드로 들어오는 노드"다"""
+        forward = {n: [v for v, _ in edges] for n, edges in self.adj.items()}
+        reverse: dict[NodeId, list[NodeId]] = {n: [] for n in self.adj}
+        for u, vs in forward.items():
+            for v in vs:
+                reverse[v].append(u)
+        return forward, reverse
+
+    def largest_component(self) -> set[NodeId]:
+        """서로 오갈 수 있는 노드끼리 묶은 덩어리(강한 연결 요소) 중 가장 큰 것
+
+        일방통행이 있으므로 "u에서 v로 갈 수 있다"와 "v에서 u로 갈 수 있다"를 둘 다 만족해야 같은 덩어리다
+        u의 덩어리 = u에서 갈 수 있는 노드 ∩ u로 올 수 있는 노드(간선을 뒤집어 u에서 갈 수 있는 노드)
+        """
+        forward, reverse = self.neighbor_lists()
+        best: set[NodeId] = set()
+        assigned: set[NodeId] = set()
+        for start in self.adj:
+            if start in assigned:
+                continue
+            component = _reachable(start, forward, assigned) & _reachable(start, reverse, assigned)
+            assigned |= component
+            if len(component) > len(best):
+                best = component
+        return best
 
     def node_count(self) -> int:
         return len(self.coords)
@@ -120,11 +165,14 @@ def _direction(tags: dict) -> int:
     return 0
 
 
-def load_osm_graph(path: Path = OSM_PATH) -> Graph:
+def load_osm_graph(path: Path = OSM_PATH, keep_largest: bool = True) -> Graph:
     """fetch_osm.py가 저장한 도로 JSON → Graph
 
     도로(way)는 점(node) 목록이다. 이웃한 두 점마다 간선을 만들고 가중치는 두 점 사이 거리(m)로 한다
     도로가 꺾이는 지점도 노드가 되므로 노드 수가 교차로 수보다 많다 (탐색 애니메이션이 촘촘해지는 장점도 있다)
+
+    keep_largest: 서로 오갈 수 있는 가장 큰 덩어리만 남긴다
+    영역 안에 IC가 없는 고속도로처럼 영역 밖으로 나가야만 이어지는 도로를 빼서, 어떤 두 노드를 골라도 경로가 있게 한다
     """
     data = json.loads(path.read_text(encoding="utf-8"))
     g = Graph()
@@ -142,6 +190,9 @@ def load_osm_graph(path: Path = OSM_PATH) -> Graph:
                 g.add_edge(v, u, weight, oneway=True)
             else:
                 g.add_edge(u, v, weight, oneway=direction == 1)
+
+    if keep_largest:
+        g.keep_only(g.largest_component())
     return g
 
 
@@ -168,8 +219,16 @@ def _print_sample() -> None:
 
 
 def _print_osm() -> None:
+    raw = load_osm_graph(keep_largest=False)
     g = load_osm_graph()
-    print(f"노드 {g.node_count()}개, 방향 간선 {g.edge_count()}개")
+    print(f"원본: 노드 {raw.node_count()}개, 방향 간선 {raw.edge_count()}개")
+    print(f"가장 큰 덩어리만 남김: 노드 {g.node_count()}개, 방향 간선 {g.edge_count()}개")
+
+    # 남은 노드는 모두 서로 오갈 수 있어야 한다: 아무 노드에서 정방향/역방향으로 전부 닿는지 확인
+    start = next(iter(g.adj))
+    forward, reverse = g.neighbor_lists()
+    ok = len(_reachable(start, forward, set())) == len(_reachable(start, reverse, set())) == g.node_count()
+    print(f"모든 노드끼리 오갈 수 있음: {ok}")
 
     weights = [w for edges in g.adj.values() for _, w in edges]
     print(f"간선 길이: 최소 {min(weights):.1f}m, 평균 {sum(weights) / len(weights):.1f}m, 최대 {max(weights):.1f}m")
