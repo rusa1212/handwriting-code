@@ -5,6 +5,19 @@ const ROUTE_STYLE = { strokeWeight: 6, strokeColor: '#7a7a7a', strokeOpacity: 0.
 // 선택된 경로: 진하고 굵게, 다른 선보다 위에 그린다
 const SELECTED_STYLE = { strokeWeight: 8, strokeColor: '#aa3bff', strokeOpacity: 0.95, zIndex: 2 }
 
+// 지점 선택용 커서: 기본 crosshair는 얇은 검은 선이라 지도에 묻힌다
+// 흰 외곽선 위에 굵은 색 선을 겹쳐 어떤 배경에서도 보이게 한다 (중심 16,16이 클릭 지점)
+const PICK_CURSOR_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <g stroke="#fff" stroke-width="5" stroke-linecap="round">
+    <path d="M16 3v8M16 21v8M3 16h8M21 16h8"/>
+  </g>
+  <g stroke="#aa3bff" stroke-width="2.5" stroke-linecap="round">
+    <path d="M16 3v8M16 21v8M3 16h8M21 16h8"/>
+  </g>
+  <circle cx="16" cy="16" r="3" fill="#aa3bff" stroke="#fff" stroke-width="1.5"/>
+</svg>`
+const PICK_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(PICK_CURSOR_SVG)}") 16 16, crosshair`
+
 // 지도는 props로 받은 데이터를 그리기만 한다 (상태는 부모가 가진다)
 // routes: [{ id, path: [[lat, lng], ...] }]
 // markers: [{ label, lat, lng }]
@@ -91,7 +104,7 @@ function MapView({ center, level = 4, routes = [], markers = [], selectedId = nu
     }
   }, [ready, routes, markers])
 
-  // onMapClick이 있을 때만 지도 클릭을 받는다 (지점 선택 모드). 커서도 십자 모양으로 바꾼다
+  // onMapClick이 있을 때만 지도 클릭을 받는다 (지점 선택 모드). 커서도 눈에 띄는 십자 모양으로 바꾼다
   useEffect(() => {
     const map = mapRef.current
     if (!ready || !map || !onMapClick) return
@@ -99,7 +112,7 @@ function MapView({ center, level = 4, routes = [], markers = [], selectedId = nu
 
     const handleClick = (e) => onMapClick({ lat: e.latLng.getLat(), lng: e.latLng.getLng() })
     kakao.maps.event.addListener(map, 'click', handleClick)
-    map.setCursor('crosshair')
+    map.setCursor(PICK_CURSOR)
 
     return () => {
       kakao.maps.event.removeListener(map, 'click', handleClick)
