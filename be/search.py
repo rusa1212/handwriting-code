@@ -10,11 +10,13 @@ BFS → DFS → Dijkstra → A* 를 직접 구현한다
 
 import heapq
 import math
+import random
 import sys
+import time
 from collections import deque
 from typing import NamedTuple
 
-from graph import Graph, NodeId, sample_graph
+from graph import Graph, NodeId, load_osm_graph, sample_graph
 
 
 class SearchResult(NamedTuple):
@@ -253,6 +255,66 @@ def _check_algorithms() -> None:
         print(f"    {start} → {end}: {d}개 vs {a}개  {'OK' if a <= d else 'A*가 더 많이 방문함!'}")
 
 
+def _check_osm(pairs: int = 200, seed: int = 0) -> None:
+    """2-6 확인: 구미 OSM 그래프에서 무작위 출발/도착 쌍으로 네 알고리즘을 비교한다
+
+    - 경로가 모두 있어야 한다 (가장 큰 덩어리만 남겼으므로 어떤 두 노드도 이어져 있다)
+    - 다익스트라와 A*의 비용이 같고, A*의 방문 수가 다익스트라보다 많지 않아야 한다
+    - BFS/DFS 비용은 다익스트라보다 짧을 수 없다
+    """
+    g = load_osm_graph()
+    ids = list(g.coords)
+    rng = random.Random(seed)  # 실행할 때마다 같은 쌍이 나오게 한다
+    samples = [tuple(rng.sample(ids, 2)) for _ in range(pairs)]
+
+    total_visited = dict.fromkeys(ALGORITHMS, 0)
+    total_cost = dict.fromkeys(ALGORITHMS, 0.0)
+    total_ms = dict.fromkeys(ALGORITHMS, 0.0)
+    problems = []
+    for start, end in samples:
+        results = {}
+        for name, search in ALGORITHMS.items():
+            t0 = time.perf_counter()
+            results[name] = search(g, start, end)
+            total_ms[name] += (time.perf_counter() - t0) * 1000
+            total_visited[name] += len(results[name].visited_order)
+            total_cost[name] += results[name].cost
+
+        best = results["dijkstra"].cost
+        if any(not r.path or r.path[0] != start or r.path[-1] != end for r in results.values()):
+            problems.append((start, end, "경로 없음 또는 출발/도착이 다름"))
+        if not math.isclose(results["astar"].cost, best):
+            problems.append((start, end, f"A* 비용 {results['astar'].cost:.1f}m ≠ 다익스트라 {best:.1f}m"))
+        if len(results["astar"].visited_order) > len(results["dijkstra"].visited_order):
+            problems.append((start, end, "A*가 다익스트라보다 많이 방문"))
+        for name in ("bfs", "dfs"):
+            if results[name].cost < best - 1e-6:
+                problems.append((start, end, f"{name} 비용이 다익스트라보다 짧음"))
+
+    print(f"  노드 {g.node_count()}개, 무작위 {pairs}쌍 (seed={seed})")
+    print(f"  {'알고리즘':<8} {'평균 비용':>10} {'평균 방문':>9} {'평균 시간':>9}")
+    for name in ALGORITHMS:
+        print(f"  {name:<10} {total_cost[name] / pairs:>9,.0f}m {total_visited[name] / pairs:>9.0f}개"
+              f" {total_ms[name] / pairs:>7.2f}ms")
+    ratio = total_visited["astar"] / total_visited["dijkstra"] * 100
+    print(f"  A* 방문 수 = 다익스트라의 {ratio:.0f}%")
+    print(f"  문제 {len(problems)}건  {'OK' if not problems else ''}")
+    for start, end, message in problems[:10]:
+        print(f"    {start} → {end}: {message}")
+
+    # 예외 상황
+    print("  [예외 상황]")
+    node = ids[0]
+    for name, search in ALGORITHMS.items():
+        result = search(g, node, node)
+        ok = result.path == [node] and result.cost == 0
+        print(f"    {name:<8} 출발 = 도착: 경로 {len(result.path)}개, 비용 {result.cost:g}m  {'OK' if ok else '다름!'}")
+    # 그래프 영역 밖 클릭: 가장 가까운 노드가 멀다. 3단계 API에서 이 거리로 오류를 낸다 (예: 500m 이상)
+    for label, lat, lng in [("구미역", 36.1283, 128.3306), ("영역 밖(구미역 북쪽 3.5km)", 36.16, 128.34)]:
+        node_id, dist = g.nearest_node(lat, lng)
+        print(f"    {label} ({lat}, {lng}) → 가장 가까운 노드 {node_id}, {dist:,.0f}m")
+
+
 if __name__ == "__main__":
     # Windows 터미널(cp949)에서 한글이 깨지지 않게 한다
     sys.stdout.reconfigure(encoding="utf-8")
@@ -260,3 +322,5 @@ if __name__ == "__main__":
     _check_common()
     print("\n[예제 그래프 알고리즘 확인]")
     _check_algorithms()
+    print("\n[구미 OSM 그래프 확인]")
+    _check_osm()
