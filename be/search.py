@@ -87,8 +87,35 @@ def bfs(graph: Graph, start: NodeId, end: NodeId) -> SearchResult:
     return make_result(graph, parent, visited_order, start, end)
 
 
+def dfs(graph: Graph, start: NodeId, end: NodeId) -> SearchResult:
+    """깊이 우선 탐색: 한 길로 끝까지 들어가 보고, 막히면 돌아와 다른 길로 간다
+
+    경로는 찾지만 **최단 경로라는 보장이 없다** (어떤 길로 먼저 들어가느냐에 따라 결과가 바뀐다)
+    재귀 대신 스택을 쓴다. 노드가 수천 개면 재귀 깊이 제한(기본 1000)에 걸릴 수 있다
+    visited_order = 스택에서 꺼내 처음 방문한 순서. 도착 노드를 방문하면 멈춘다
+    """
+    parent: dict[NodeId, NodeId | None] = {}  # 방문한 노드만 여기에 있다
+    stack: list[tuple[NodeId, NodeId | None]] = [(start, None)]  # (노드, 거쳐 온 노드)
+    visited_order = []
+    while stack:
+        u, came_from = stack.pop()
+        # 같은 노드가 여러 경로로 스택에 들어갈 수 있다. 처음 꺼낸 것만 방문한다
+        if u in parent:
+            continue
+        parent[u] = came_from
+        visited_order.append(u)
+        if u == end:
+            break
+        # 거꾸로 넣어야 첫 번째 이웃이 스택 맨 위에 와서 먼저 방문된다 (재귀 DFS와 같은 순서)
+        for v, _ in reversed(graph.neighbors(u)):
+            if v not in parent:
+                stack.append((v, u))
+    return make_result(graph, parent, visited_order, start, end)
+
+
 ALGORITHMS = {
     "bfs": bfs,
+    "dfs": dfs,
 }
 
 
@@ -122,6 +149,10 @@ EXPECTED = {
     "bfs": {
         ("B", "G"): (["B", "E", "G"], 470),  # 간선 2개. 거리로는 B-A-D-E-G(440m)가 더 짧다
         ("A", "F"): (["A", "B", "C", "F"], 370),  # A-D-E-F(320m)와 간선 수가 같으면 먼저 발견한 쪽
+    },
+    "dfs": {
+        ("B", "G"): (["B", "A", "D", "E", "G"], 440),  # A로 먼저 들어간 덕에 우연히 최단 경로
+        ("G", "A"): (["G", "E", "B", "A"], 570),  # E에서 B로 먼저 들어가 돌아간다. 최단은 G-E-D-A(340m)
     },
 }
 
