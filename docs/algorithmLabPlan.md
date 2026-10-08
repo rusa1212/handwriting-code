@@ -127,7 +127,7 @@
 | 세그먼트 | 내용 | 상태 |
 |---|---|---|
 | 2-0 | 예제 그래프 가중치 수정 (B─E 300m → 350m) | ✅ 완료 |
-| 2-1 | 공통 틀: `(path, visited_order, cost)` 결과 형태, `parent`로 경로 복원, `python search.py` 출력 뼈대 | ⬜ |
+| 2-1 | 공통 틀: `(path, visited_order, cost)` 결과 형태, `parent`로 경로 복원, `python search.py` 출력 뼈대 | ✅ 완료 |
 | 2-2 | BFS (간선 수 최소) | ⬜ |
 | 2-3 | DFS (스택, 최단 보장 없음) | ⬜ |
 | 2-4 | Dijkstra (`heapq`, 확정 순서 = `visited_order`) | ⬜ |
@@ -138,6 +138,17 @@
 
 - 원래 B─E가 300m라 B → G 최단 경로가 B-E-G(420m)였다. B-A-D-E-G(440m)보다 짧아서 BFS와 Dijkstra가 같은 경로를 냈다.
 - B─E를 350m로 올렸다 → Dijkstra: B-A-D-E-G **440m**, BFS: B-E-G **470m** (간선 2개). 두 알고리즘의 차이가 드러난다.
+
+### 2-1 공통 틀
+
+- `SearchResult(path, visited_order, cost)`: `NamedTuple`이라 `path, visited, cost = result`로 풀어 쓸 수도 있다.
+  - `path`, `visited_order`는 **노드 id**. 좌표로 바꾸는 것은 3단계 API에서 한다.
+  - 경로가 없으면 `path = []`, `cost = inf`. 출발 = 도착이면 `path = [start]`, `cost = 0`.
+- `reconstruct_path(parent, start, end)`: 탐색은 `parent[start] = None`으로 시작하고, 노드에 처음 도착할 때 거쳐 온 노드를 적는다. 도착 노드에서 거꾸로 따라가 뒤집는다.
+- `path_cost(graph, path)`: BFS/DFS는 가중치를 보지 않으므로 경로를 찾은 뒤 비용을 따로 계산한다.
+- `make_result(...)`: 위 둘을 묶어 결과를 만든다. 알고리즘마다 마지막 줄에서 이것만 부르면 된다.
+- `ALGORITHMS = { "bfs": bfs, ... }`: 2-2부터 채운다. 3단계 API가 `algorithm` 문자열로 함수를 고를 때도 쓴다.
+- `python search.py`: Windows 터미널에서 한글이 깨지지 않게 출력을 UTF-8로 바꾼다.
 
 - 순서: BFS → DFS → Dijkstra → A\*
 - 라이브러리의 최단경로 함수를 쓰지 않고 **핵심 부분을 직접 구현**한다. (우선순위 큐는 `heapq` 사용)
