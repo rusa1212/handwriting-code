@@ -144,10 +144,43 @@ def dijkstra(graph: Graph, start: NodeId, end: NodeId) -> SearchResult:
     return make_result(graph, parent, visited_order, start, end)
 
 
+def astar(graph: Graph, start: NodeId, end: NodeId) -> SearchResult:
+    """A*: 다익스트라와 같지만 "지금까지 거리 + 도착까지 남은 직선거리"가 가장 작은 노드부터 확정한다
+
+    g = 출발 → 노드까지 찾은 거리, h = 노드 → 도착 직선거리(하버사인), f = g + h
+    도로 거리는 직선거리보다 짧을 수 없으므로 h가 남은 거리를 부풀리지 않는다 → 다익스트라와 같은 최단 경로
+    도착 반대쪽 노드는 f가 커서 뒤로 밀리므로 다익스트라보다 적게 방문한다
+    visited_order = 확정한 순서. 도착 노드를 확정하면 멈춘다
+    """
+    g: dict[NodeId, float] = {start: 0}
+    parent: dict[NodeId, NodeId | None] = {start: None}
+    done: set[NodeId] = set()
+    heap: list[tuple[float, NodeId]] = [(graph.distance(start, end), start)]
+    visited_order = []
+    while heap:
+        _, u = heapq.heappop(heap)
+        # 다익스트라와 같은 방식으로 옛 항목을 버린다
+        # 간선마다 "도로 거리 ≥ 직선거리"이면 한 번 확정한 노드에 더 짧은 길이 나오지 않으므로 다시 열 필요가 없다
+        if u in done:
+            continue
+        done.add(u)
+        visited_order.append(u)
+        if u == end:
+            break
+        for v, w in graph.neighbors(u):
+            new_g = g[u] + w
+            if v not in done and new_g < g.get(v, math.inf):
+                g[v] = new_g
+                parent[v] = u
+                heapq.heappush(heap, (new_g + graph.distance(v, end), v))
+    return make_result(graph, parent, visited_order, start, end)
+
+
 ALGORITHMS = {
     "bfs": bfs,
     "dfs": dfs,
     "dijkstra": dijkstra,
+    "astar": astar,
 }
 
 
@@ -191,6 +224,12 @@ EXPECTED = {
         ("G", "A"): (["G", "E", "D", "A"], 340),
         ("A", "F"): (["A", "D", "E", "F"], 320),  # BFS는 같은 간선 수의 A-B-C-F(370m)를 골랐다
     },
+    # 경로·비용은 다익스트라와 같아야 한다. 방문 수는 _check_algorithms에서 따로 비교한다
+    "astar": {
+        ("B", "G"): (["B", "A", "D", "E", "G"], 440),
+        ("G", "A"): (["G", "E", "D", "A"], 340),
+        ("A", "F"): (["A", "D", "E", "F"], 320),
+    },
 }
 
 
@@ -206,6 +245,12 @@ def _check_algorithms() -> None:
             result = search(g, start, end)
             ok = result.path == want_path and result.cost == want_cost and result.visited_order[0] == start
             print(f"    {start} → {end}: {_format(result)}  {'OK' if ok else f'기대값 {want_path} {want_cost}m와 다름!'}")
+
+    # A*는 다익스트라보다 방문 노드가 많으면 안 된다
+    print("  [dijkstra vs astar 방문 수]")
+    for start, end in EXPECTED["astar"]:
+        d, a = len(dijkstra(g, start, end).visited_order), len(astar(g, start, end).visited_order)
+        print(f"    {start} → {end}: {d}개 vs {a}개  {'OK' if a <= d else 'A*가 더 많이 방문함!'}")
 
 
 if __name__ == "__main__":
