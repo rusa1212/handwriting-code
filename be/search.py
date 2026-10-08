@@ -8,6 +8,7 @@ BFS → DFS → Dijkstra → A* 를 직접 구현한다
     cost          path의 실제 도로 거리 합(m). 경로가 없으면 math.inf
 """
 
+import heapq
 import math
 import sys
 from collections import deque
@@ -113,9 +114,40 @@ def dfs(graph: Graph, start: NodeId, end: NodeId) -> SearchResult:
     return make_result(graph, parent, visited_order, start, end)
 
 
+def dijkstra(graph: Graph, start: NodeId, end: NodeId) -> SearchResult:
+    """다익스트라: 지금까지 알려진 거리가 가장 짧은 노드부터 하나씩 확정한다
+
+    가중치(도로 거리)가 음수가 아니면 **거리가 가장 짧은** 경로를 보장한다
+    우선순위 큐(heapq)에서 꺼낸 노드는 더 짧은 길이 나올 수 없으므로 그 순간 거리가 확정된다
+    visited_order = 확정한 순서. 도착 노드를 확정하면 멈춘다
+    """
+    dist: dict[NodeId, float] = {start: 0}  # 지금까지 찾은 가장 짧은 거리 (아직 확정 전일 수 있다)
+    parent: dict[NodeId, NodeId | None] = {start: None}
+    done: set[NodeId] = set()
+    heap: list[tuple[float, NodeId]] = [(0, start)]
+    visited_order = []
+    while heap:
+        d, u = heapq.heappop(heap)
+        # 더 짧은 거리를 찾을 때마다 새로 넣고 옛 항목은 지우지 않는다. 꺼낼 때 이미 확정됐으면 버린다
+        if u in done:
+            continue
+        done.add(u)
+        visited_order.append(u)
+        if u == end:
+            break
+        for v, w in graph.neighbors(u):
+            new_dist = d + w
+            if v not in done and new_dist < dist.get(v, math.inf):
+                dist[v] = new_dist
+                parent[v] = u
+                heapq.heappush(heap, (new_dist, v))
+    return make_result(graph, parent, visited_order, start, end)
+
+
 ALGORITHMS = {
     "bfs": bfs,
     "dfs": dfs,
+    "dijkstra": dijkstra,
 }
 
 
@@ -153,6 +185,11 @@ EXPECTED = {
     "dfs": {
         ("B", "G"): (["B", "A", "D", "E", "G"], 440),  # A로 먼저 들어간 덕에 우연히 최단 경로
         ("G", "A"): (["G", "E", "B", "A"], 570),  # E에서 B로 먼저 들어가 돌아간다. 최단은 G-E-D-A(340m)
+    },
+    "dijkstra": {
+        ("B", "G"): (["B", "A", "D", "E", "G"], 440),  # B-E-G(470m)보다 간선은 많지만 짧다
+        ("G", "A"): (["G", "E", "D", "A"], 340),
+        ("A", "F"): (["A", "D", "E", "F"], 320),  # BFS는 같은 간선 수의 A-B-C-F(370m)를 골랐다
     },
 }
 

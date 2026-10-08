@@ -130,7 +130,7 @@
 | 2-1 | 공통 틀: `(path, visited_order, cost)` 결과 형태, `parent`로 경로 복원, `python search.py` 출력 뼈대 | ✅ 완료 |
 | 2-2 | BFS (간선 수 최소) | ✅ 완료 |
 | 2-3 | DFS (스택, 최단 보장 없음) | ✅ 완료 |
-| 2-4 | Dijkstra (`heapq`, 확정 순서 = `visited_order`) | ⬜ |
+| 2-4 | Dijkstra (`heapq`, 확정 순서 = `visited_order`) | ✅ 완료 |
 | 2-5 | A\* (휴리스틱 = 하버사인) | ⬜ |
 | 2-6 | 구미 OSM 그래프로 Dijkstra vs A\* 검증 + 예외 상황 | ⬜ |
 
@@ -178,6 +178,21 @@
 | G → A | G-E-B-A | 570m (최단은 G-E-D-A 340m) | G E B A |
 
 - 구미 OSM 그래프에서 같은 출발/도착으로 돌려 본 결과: BFS 1,121m (노드 19개) vs DFS **8,869m** (노드 171개). 도로망을 크게 휘젓고 다니는 경로가 나온다.
+
+### 2-4 Dijkstra (`dijkstra()`)
+
+- `heapq`에 `(지금까지 거리, 노드)`를 넣고, 거리가 가장 짧은 노드를 꺼내 **확정**한다. 확정 순서 = `visited_order`, 도착 노드를 확정하면 멈춘다.
+- 더 짧은 거리를 찾으면 새 항목을 넣기만 하고 옛 항목은 지우지 않는다. 꺼냈을 때 이미 확정된 노드면 버린다 (heapq에는 "값 줄이기"가 없어서 쓰는 흔한 방법).
+- `python search.py` 결과 (예제 그래프):
+
+| 출발 → 도착 | 경로 | 비용 | 방문 순서 | 비교 |
+|---|---|---|---|---|
+| B → G | B-A-D-E-G | 440m | B A C D F E G | BFS는 B-E-G 470m |
+| G → A | G-E-D-A | 340m | G E D F A | DFS는 G-E-B-A 570m |
+| A → F | A-D-E-F | 320m | A B D E C F | BFS는 A-B-C-F 370m |
+
+- 구미 OSM 그래프 무작위 200쌍: Dijkstra 비용이 BFS·DFS보다 긴 경우 **0건**, 평균 실행 시간 약 0.9ms.
+- 2-3과 같은 쌍: Dijkstra 1,103m (BFS 1,121m, DFS 8,869m). 방문 노드는 375개로 BFS(267개)보다 많다 → 2-5 A\*로 줄일 대상.
 
 - 순서: BFS → DFS → Dijkstra → A\*
 - 라이브러리의 최단경로 함수를 쓰지 않고 **핵심 부분을 직접 구현**한다. (우선순위 큐는 `heapq` 사용)
