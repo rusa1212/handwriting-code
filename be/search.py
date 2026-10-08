@@ -10,6 +10,7 @@ BFS → DFS → Dijkstra → A* 를 직접 구현한다
 
 import math
 import sys
+from collections import deque
 from typing import NamedTuple
 
 from graph import Graph, NodeId, sample_graph
@@ -64,8 +65,31 @@ def make_result(graph: Graph, parent: dict[NodeId, NodeId | None], visited_order
     return SearchResult(path, visited_order, path_cost(graph, path))
 
 
-# 2-2부터 하나씩 채운다: { "bfs": bfs, "dfs": dfs, ... }
-ALGORITHMS: dict = {}
+def bfs(graph: Graph, start: NodeId, end: NodeId) -> SearchResult:
+    """너비 우선 탐색: 출발에서 가까운(간선 수가 적은) 노드부터 차례로 방문한다
+
+    가중치를 보지 않으므로 **간선 개수가 가장 적은** 경로를 찾는다. 거리가 가장 짧다는 보장은 없다
+    visited_order = 큐에서 꺼낸 순서. 도착 노드를 꺼내면 멈춘다 (Dijkstra의 "확정"과 같은 시점)
+    """
+    parent: dict[NodeId, NodeId | None] = {start: None}  # 큐에 넣은(발견한) 노드는 여기에 있다
+    queue = deque([start])
+    visited_order = []
+    while queue:
+        u = queue.popleft()
+        visited_order.append(u)
+        if u == end:
+            break
+        for v, _ in graph.neighbors(u):
+            # 처음 발견했을 때 parent를 정한다. 먼저 발견한 쪽이 간선 수가 적은 길이다
+            if v not in parent:
+                parent[v] = u
+                queue.append(v)
+    return make_result(graph, parent, visited_order, start, end)
+
+
+ALGORITHMS = {
+    "bfs": bfs,
+}
 
 
 def _format(result: SearchResult) -> str:
@@ -93,12 +117,27 @@ def _check_common() -> None:
         print(f"  {label}: {_format(result)}  {'OK' if ok else f'기대값 {want_path} {want_cost}m와 다름!'}")
 
 
-def _run_sample() -> None:
+# 예제 그래프 기대값: (출발, 도착) → (경로, 비용 m). 알고리즘마다 하나씩 늘린다
+EXPECTED = {
+    "bfs": {
+        ("B", "G"): (["B", "E", "G"], 470),  # 간선 2개. 거리로는 B-A-D-E-G(440m)가 더 짧다
+        ("A", "F"): (["A", "B", "C", "F"], 370),  # A-D-E-F(320m)와 간선 수가 같으면 먼저 발견한 쪽
+    },
+}
+
+
+def _check_algorithms() -> None:
     g = sample_graph()
-    if not ALGORITHMS:
-        print("  (아직 구현한 알고리즘이 없습니다)")
+    # 다른 노드와 이어지지 않은 노드: 경로가 없을 때를 확인한다
+    g.add_node("H", 36.126, 128.333)
     for name, search in ALGORITHMS.items():
-        print(f"  {name:>8}: {_format(search(g, 'B', 'G'))}")
+        print(f"  [{name}]")
+        cases = [(start, end, *want) for (start, end), want in EXPECTED.get(name, {}).items()]
+        cases += [("G", "G", ["G"], 0), ("B", "H", [], math.inf)]
+        for start, end, want_path, want_cost in cases:
+            result = search(g, start, end)
+            ok = result.path == want_path and result.cost == want_cost and result.visited_order[0] == start
+            print(f"    {start} → {end}: {_format(result)}  {'OK' if ok else f'기대값 {want_path} {want_cost}m와 다름!'}")
 
 
 if __name__ == "__main__":
@@ -106,5 +145,5 @@ if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8")
     print("[공통 틀 확인]")
     _check_common()
-    print("\n[예제 그래프 B → G]")
-    _run_sample()
+    print("\n[예제 그래프 알고리즘 확인]")
+    _check_algorithms()
