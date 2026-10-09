@@ -1,7 +1,17 @@
 from fastapi import FastAPI, HTTPException, Query
 
+from lab import OutOfAreaError, run_search
 from map_api import MapApiError, get_routes, reverse_geocode, search_places
-from schemas import Place, PlaceCandidate, RecommendRequest, RecommendResponse, Route, RoutesRequest
+from schemas import (
+    Place,
+    PlaceCandidate,
+    RecommendRequest,
+    RecommendResponse,
+    Route,
+    RoutesRequest,
+    SearchRequest,
+    SearchResponse,
+)
 from scoring import recommend
 
 app = FastAPI()
@@ -52,3 +62,14 @@ def routes(req: RoutesRequest) -> list[Route]:
 @app.post("/api/recommend")
 def recommend_route(req: RecommendRequest) -> RecommendResponse:
     return recommend(req.routes, req.weights)
+
+
+# LEVEL 4: 구미 도로망 그래프에서 직접 구현한 알고리즘으로 경로를 찾고 탐색 과정(visited_order)도 돌려준다
+# 경로가 없으면 오류가 아니라 path = [], cost = null로 응답한다
+@app.post("/api/search")
+def search(req: SearchRequest) -> SearchResponse:
+    try:
+        return run_search(req.start, req.end, req.algorithm)
+    except OutOfAreaError as e:
+        # 사용자가 영역 밖을 고른 것이므로 400 (Bad Request)
+        raise HTTPException(status_code=400, detail=str(e)) from e

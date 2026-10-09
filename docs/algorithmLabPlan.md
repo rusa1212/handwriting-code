@@ -11,7 +11,7 @@
 |---|---|---|---|
 | 1 | OSM 도로망을 받아 그래프로 변환 (`be/graph.py`) | 필수 | ✅ 완료 |
 | 2 | BFS → DFS → Dijkstra → A\* 직접 구현 + 터미널 검증 (`be/search.py`) | 필수 | ✅ 완료 |
-| 3 | 백엔드 `POST /api/search` | 필수 | ⬜ |
+| 3 | 백엔드 `POST /api/search` | 필수 | ✅ 완료 |
 | 4 | 실험실 화면: 출발/도착 선택 → 알고리즘 선택 → 실행 → 경로 표시 | 필수 | ⬜ |
 | 5 | `visited_order` 탐색 애니메이션 | 필수 | ⬜ |
 | 6 | Dijkstra vs A\* 비교 (방문 노드 수, 비용, 실행 시간) | 필수 | ⬜ |
@@ -51,7 +51,7 @@
 
 | 엔드포인트 | 요청 | 응답 | 상태 |
 |---|---|---|---|
-| `POST /api/search` | `{ start, end, algorithm, weights }` | `{ path, visited_order, cost, elapsed_ms }` | ⬜ |
+| `POST /api/search` | `{ start, end, algorithm, weights }` | `{ path, visited_order, cost, elapsed_ms }` | ✅ |
 
 - `start`, `end`: 좌표 `{ lat, lng }` → 서버에서 **가장 가까운 노드**로 맞춘다.
 - `algorithm`: `"bfs" | "dfs" | "dijkstra" | "astar"`
@@ -247,13 +247,13 @@ D ─ E ─ F
     G
 ```
 
-## 3단계 ⬜ 백엔드 `/api/search`
+## 3단계 ✅ 백엔드 `/api/search`
 
 | 세그먼트 | 내용 | 상태 |
 |---|---|---|
 | 3-1 | 요청/응답 Pydantic 모델 (`be/schemas.py`) | ✅ 완료 |
 | 3-2 | 좌표 → 노드 → 탐색 → 좌표 변환 함수 (`be/lab.py`, 터미널 확인) | ✅ 완료 |
-| 3-3 | `POST /api/search` 연결 + 오류 응답, `/docs`에서 확인 (`be/main.py`) | ⬜ |
+| 3-3 | `POST /api/search` 연결 + 오류 응답, `/docs`에서 확인 (`be/main.py`) | ✅ 완료 |
 
 - `/docs`에서 먼저 응답을 확인한 뒤 프론트에 붙인다.
 
@@ -300,6 +300,12 @@ D ─ E ─ F
 | 경로 없음 | 200, `path = []`, `cost = null` (오류가 아니라 결과로 본다) |
 
 - `/docs`에서 네 알고리즘을 같은 출발/도착으로 보내 2-6 결과와 비용이 맞는지, A\*의 `visited_order`가 다익스트라보다 짧은지 확인한다.
+- 확인 결과 (2026-10-09, FastAPI `TestClient`로 `/docs`와 같은 요청):
+  - 3-2와 같은 출발/도착: 네 알고리즘 모두 200, 비용·방문 수가 3-2 결과와 같다 (A\* 49개 vs 다익스트라 722개)
+  - 출발 = 도착: 200, `cost = 0`, 경로 1점
+  - 영역 밖: 400, `"도착지가 구미 실험 영역 밖입니다 (가장 가까운 도로까지 1,220m)"`
+  - `algorithm = "greedy"`: 422, `weights`를 보내도 200 (아직 쓰지 않음)
+  - 경로 없음(200, `cost = null`)은 OSM 그래프가 모두 연결되어 있어 API로는 만들 수 없다. 변환 코드(`inf` → `None`)만 있다.
 
 ## 4단계 ⬜ 실험실 화면 (`AlgorithmLabPage.jsx`)
 
