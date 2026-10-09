@@ -11,7 +11,7 @@
 |---|---|---|---|
 | 1 | OSM 도로망을 받아 그래프로 변환 (`be/graph.py`) | 필수 | ✅ 완료 |
 | 2 | BFS → DFS → Dijkstra → A\* 직접 구현 + 터미널 검증 (`be/search.py`) | 필수 | ✅ 완료 |
-| 3 | 백엔드 `POST /api/search` | 필수 | ⬜ |
+| 3 | 백엔드 `POST /api/search` | 필수 | ✅ 완료 |
 | 4 | 실험실 화면: 출발/도착 선택 → 알고리즘 선택 → 실행 → 경로 표시 | 필수 | ⬜ |
 | 5 | `visited_order` 탐색 애니메이션 | 필수 | ⬜ |
 | 6 | Dijkstra vs A\* 비교 (방문 노드 수, 비용, 실행 시간) | 필수 | ⬜ |
@@ -51,7 +51,7 @@
 
 | 엔드포인트 | 요청 | 응답 | 상태 |
 |---|---|---|---|
-| `POST /api/search` | `{ start, end, algorithm, weights }` | `{ path, visited_order, cost }` | ⬜ |
+| `POST /api/search` | `{ start, end, algorithm, weights }` | `{ path, visited_order, cost, elapsed_ms }` | ✅ |
 
 - `start`, `end`: 좌표 `{ lat, lng }` → 서버에서 **가장 가까운 노드**로 맞춘다.
 - `algorithm`: `"bfs" | "dfs" | "dijkstra" | "astar"`
@@ -247,11 +247,65 @@ D ─ E ─ F
     G
 ```
 
-## 3단계 ⬜ 백엔드 `/api/search`
+## 3단계 ✅ 백엔드 `/api/search`
 
-- `schemas.py`: 요청/응답 Pydantic 모델
-- `main.py`: `POST /api/search`
+| 세그먼트 | 내용 | 상태 |
+|---|---|---|
+| 3-1 | 요청/응답 Pydantic 모델 (`be/schemas.py`) | ✅ 완료 |
+| 3-2 | 좌표 → 노드 → 탐색 → 좌표 변환 함수 (`be/lab.py`, 터미널 확인) | ✅ 완료 |
+| 3-3 | `POST /api/search` 연결 + 오류 응답, `/docs`에서 확인 (`be/main.py`) | ✅ 완료 |
+
 - `/docs`에서 먼저 응답을 확인한 뒤 프론트에 붙인다.
+
+### 3-1 요청/응답 모델 (`schemas.py`)
+
+- `LatLng`: `{ lat, lng }` (위도 ±90, 경도 ±180 범위 검사). 기존 `Place`는 `name`이 필수라 따로 만들었다.
+- `SearchRequest`: `start`, `end`(`LatLng`), `algorithm`(`Literal["bfs", "dfs", "dijkstra", "astar"]`), `weights`(`Weights | None`, LEVEL 4에서는 쓰지 않음)
+  - `algorithm`을 `Literal`로 두면 잘못된 값은 FastAPI가 알아서 422로 거절한다.
+- `SearchResponse`: `path`(`[[lat, lng], ...]`, 기존 `Route.path`와 같은 형식), `visited_order`(`[[lat, lng], ...]`), `cost`, `elapsed_ms`
+  - `cost`는 `float | None`: 경로가 없을 때 `inf`는 **JSON으로 보낼 수 없으므로** `None`(null)으로 바꾼다.
+  - `elapsed_ms`: 6단계 비교에 쓸 탐색 시간. 탐색 함수만 잰다 (좌표 변환·네트워크 제외).
+
+### 3-2 탐색 실행 함수 (`lab.py`)
+
+- 그래프는 서버가 처음 쓸 때 **한 번만** 읽어 둔다 (`functools.cache`로 `load_osm_graph()` 감싸기). 요청마다 JSON을 읽지 않는다.
+- `run_search(start, end, algorithm) -> SearchResponse` 흐름:
+  1. `Graph.nearest_node()`로 출발/도착 좌표를 노드에 맞춘다. 둘 중 하나라도 **500m 이상** 떨어지면 `OutOfAreaError`
+  2. `ALGORITHMS[algorithm]`로 탐색, `time.perf_counter()`로 시간 측정
+  3. `path`, `visited_order`의 노드 id → `graph.coords` 좌표로 바꾼다
+- 출발/도착 노드가 같으면 2단계 규칙 그대로 `path = [그 노드]`, `cost = 0`.
+- `python lab.py`: 구미역 → 근처 좌표, 영역 밖 좌표(북쪽 3.5km)를 넣어 결과와 오류를 터미널에서 확인한다.
+- `OutOfAreaError(label, distance)`: 메시지에 출발지/도착지 중 어느 쪽인지와 거리를 담는다. 3-3에서 그대로 400 응답으로 보낸다.
+- `python lab.py` 결과 (구미역 (36.1283, 128.3306) → (36.1220, 128.3420)):
+
+| 알고리즘 | 비용 | 경로 점 | 방문 | 시간 |
+|---|---|---|---|---|
+| BFS | 1,323m | 22 | 366개 | 0.18ms |
+| DFS | 13,456m | 324 | 884개 | 0.56ms |
+| Dijkstra | 1,305m | 25 | 722개 | 0.62ms |
+| A\* | 1,305m | 25 | **49개** | 0.14ms |
+
+- 출발 = 도착: 경로 1점, 비용 0. 영역 밖(북쪽 3.5km): 출발/도착 모두 "가장 가까운 도로까지 1,220m" 오류
+- 그래프 캐시: 두 번째 `get_graph()` 호출은 바로 돌아온다 (JSON을 다시 읽지 않음)
+
+### 3-3 엔드포인트 (`main.py`)
+
+- `POST /api/search` → `run_search()` 호출. 다른 엔드포인트처럼 주석 한 줄을 붙인다.
+- 오류 응답:
+
+| 상황 | 응답 |
+|---|---|
+| 영역 밖 좌표 (`OutOfAreaError`) | 400, "구미 실험 영역 안을 선택해 주세요" + 거리 |
+| 잘못된 `algorithm` | 422 (Pydantic이 처리) |
+| 경로 없음 | 200, `path = []`, `cost = null` (오류가 아니라 결과로 본다) |
+
+- `/docs`에서 네 알고리즘을 같은 출발/도착으로 보내 2-6 결과와 비용이 맞는지, A\*의 `visited_order`가 다익스트라보다 짧은지 확인한다.
+- 확인 결과 (2026-10-09, FastAPI `TestClient`로 `/docs`와 같은 요청):
+  - 3-2와 같은 출발/도착: 네 알고리즘 모두 200, 비용·방문 수가 3-2 결과와 같다 (A\* 49개 vs 다익스트라 722개)
+  - 출발 = 도착: 200, `cost = 0`, 경로 1점
+  - 영역 밖: 400, `"도착지가 구미 실험 영역 밖입니다 (가장 가까운 도로까지 1,220m)"`
+  - `algorithm = "greedy"`: 422, `weights`를 보내도 200 (아직 쓰지 않음)
+  - 경로 없음(200, `cost = null`)은 OSM 그래프가 모두 연결되어 있어 API로는 만들 수 없다. 변환 코드(`inf` → `None`)만 있다.
 
 ## 4단계 ⬜ 실험실 화면 (`AlgorithmLabPage.jsx`)
 
