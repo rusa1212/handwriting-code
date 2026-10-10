@@ -237,6 +237,13 @@
   }
 }
 
+.algorithm-description {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  word-break: keep-all; /* 한글 단어 중간에서 줄이 바뀌지 않게 */
+}
+
 /* 경로 거리   1,305m */
 .lab-result {
   display: grid;

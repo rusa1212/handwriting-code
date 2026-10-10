@@ -6,12 +6,12 @@ import MapView from '../components/MapView'
 // 클릭할 수 있는 영역 안내. MapView는 rects가 바뀌면 다시 그리므로 렌더마다 새 배열을 만들지 않게 밖에 둔다
 const LAB_RECTS = [LAB_BOUNDS]
 
-// 서버 algorithm 값 → 화면 이름
+// 서버 algorithm 값 → 화면 이름, 고른 알고리즘 아래에 보여줄 한 줄 설명
 const ALGORITHMS = [
-  { id: 'bfs', label: 'BFS' },
-  { id: 'dfs', label: 'DFS' },
-  { id: 'dijkstra', label: 'Dijkstra' },
-  { id: 'astar', label: 'A*' },
+  { id: 'bfs', label: 'BFS', description: '거치는 노드 수가 가장 적은 경로를 찾습니다. 도로 길이는 보지 않습니다.' },
+  { id: 'dfs', label: 'DFS', description: '한 방향으로 끝까지 파고듭니다. 최단 경로를 보장하지 않습니다.' },
+  { id: 'dijkstra', label: 'Dijkstra', description: '출발지에서 가까운 노드부터 확정해 최단 경로를 찾습니다.' },
+  { id: 'astar', label: 'A*', description: 'Dijkstra + 직선거리로 도착지 쪽부터 탐색합니다. 최단 경로를 보장합니다.' },
 ]
 const ALGORITHM_LABEL = Object.fromEntries(ALGORITHMS.map((a) => [a.id, a.label]))
 
@@ -112,6 +112,7 @@ function AlgorithmLabPage() {
               </label>
             ))}
           </div>
+          <p className="algorithm-description">{ALGORITHMS.find((a) => a.id === algorithm).description}</p>
           <button type="button" className="primary" onClick={handleRun} disabled={!start || !end || loading}>
             {loading ? '탐색 중...' : '실행'}
           </button>
