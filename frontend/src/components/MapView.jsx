@@ -4,6 +4,16 @@ import { loadKakaoMap } from '../lib/loadKakaoMap'
 const ROUTE_STYLE = { strokeWeight: 6, strokeColor: '#7a7a7a', strokeOpacity: 0.8, zIndex: 1 }
 // 선택된 경로: 진하고 굵게, 다른 선보다 위에 그린다
 const SELECTED_STYLE = { strokeWeight: 8, strokeColor: '#aa3bff', strokeOpacity: 0.95, zIndex: 2 }
+// 영역 안내 사각형: 지도를 가리지 않게 옅게 채우고 점선 테두리, 경로보다 아래에 그린다
+const RECT_STYLE = {
+  strokeWeight: 2,
+  strokeColor: '#aa3bff',
+  strokeOpacity: 0.8,
+  strokeStyle: 'dash',
+  fillColor: '#aa3bff',
+  fillOpacity: 0.06,
+  zIndex: 0,
+}
 
 // 지점 선택용 커서: 기본 crosshair는 얇은 검은 선이라 지도에 묻힌다
 // 흰 외곽선 위에 굵은 색 선을 겹쳐 어떤 배경에서도 보이게 한다 (중심 16,16이 클릭 지점)
@@ -21,9 +31,10 @@ const PICK_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(PICK_CURSOR_SV
 // 지도는 props로 받은 데이터를 그리기만 한다 (상태는 부모가 가진다)
 // routes: [{ id, path: [[lat, lng], ...] }]
 // markers: [{ label, lat, lng }]
+// rects: [{ south, west, north, east }] 영역 표시용 사각형 (지도 범위 맞추기에는 넣지 않는다)
 // selectedId: 강조할 경로 id
 // onMapClick: ({ lat, lng }) => void, 넘기면 지도 클릭으로 지점을 고를 수 있다
-function MapView({ center, level = 4, routes = [], markers = [], selectedId = null, onMapClick = null }) {
+function MapView({ center, level = 4, routes = [], markers = [], selectedId = null, onMapClick = null, rects = [] }) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
   const polylinesRef = useRef(new Map()) // 경로 id → Polyline (선택 변경 시 다시 그리지 않고 스타일만 바꾼다)
@@ -103,6 +114,27 @@ function MapView({ center, level = 4, routes = [], markers = [], selectedId = nu
       polylines.clear()
     }
   }, [ready, routes, markers])
+
+  // 영역 사각형은 경로·핀과 따로 그린다 (핀을 찍을 때마다 다시 그리지 않고, 경로에 맞춘 지도 범위에도 영향이 없다)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!ready || !map) return
+    const { kakao } = window
+
+    const rectangles = rects.map(
+      ({ south, west, north, east }) =>
+        new kakao.maps.Rectangle({
+          map,
+          bounds: new kakao.maps.LatLngBounds(
+            new kakao.maps.LatLng(south, west), // 남서쪽 모서리
+            new kakao.maps.LatLng(north, east), // 북동쪽 모서리
+          ),
+          ...RECT_STYLE,
+        }),
+    )
+
+    return () => rectangles.forEach((r) => r.setMap(null))
+  }, [ready, rects])
 
   // onMapClick이 있을 때만 지도 클릭을 받는다 (지점 선택 모드). 커서도 눈에 띄는 십자 모양으로 바꾼다
   useEffect(() => {

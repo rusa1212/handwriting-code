@@ -55,3 +55,13 @@ export function recommend(routes, weights) {
     body: JSON.stringify({ routes: metrics, weights }),
   })
 }
+
+// start, end: { lat, lng } → 서버가 가장 가까운 노드로 맞춘다
+// algorithm: 'bfs' | 'dfs' | 'dijkstra' | 'astar'
+// 반환: { path: [[lat, lng], ...], visited_order: [[lat, lng], ...], cost(m, 경로 없으면 null), elapsed_ms }
+export function searchGraph(start, end, algorithm) {
+  return request('/api/search', {
+    method: 'POST',
+    body: JSON.stringify({ start, end, algorithm }),
+  })
+}
