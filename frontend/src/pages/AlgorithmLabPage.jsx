@@ -135,6 +135,13 @@ function AlgorithmLabPage() {
             )}
           </section>
         )}
+        {/* 도로망은 OSM 데이터(ODbL)라 출처를 화면에 적어야 한다 */}
+        <p className="attribution">
+          도로 데이터{' '}
+          <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
+            © OpenStreetMap contributors
+          </a>
+        </p>
       </aside>
       <MapView
         center={LAB_CENTER}
