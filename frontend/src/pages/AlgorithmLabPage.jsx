@@ -146,6 +146,9 @@ function AlgorithmLabPage() {
                 <dt>경로 거리</dt>
                 {/* 알고리즘끼리 수십 m 차이도 비교할 수 있게 km 대신 m로 보여준다 */}
                 <dd>{Math.round(result.cost).toLocaleString()}m</dd>
+                {/* BFS는 이 값이 가장 작고, Dijkstra/A*는 거리가 가장 짧다 (도로가 꺾이는 점도 노드로 센다) */}
+                <dt>경로 노드</dt>
+                <dd>{result.path.length.toLocaleString()}개</dd>
                 <dt>방문 노드</dt>
                 <dd>{result.visited_order.length.toLocaleString()}개</dd>
                 <dt>탐색 시간</dt>
