@@ -200,6 +200,23 @@
   }
 }
 
+.secondary {
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px;
+  font: inherit;
+  color: var(--accent);
+  background: none;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+}
+
 .hint,
 .error {
   margin-top: 8px;
