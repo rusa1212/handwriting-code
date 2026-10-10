@@ -57,6 +57,13 @@ function AlgorithmLabPage() {
     clearResult()
   }
 
+  // 일방통행이 있어 방향을 바꾸면 경로가 달라질 수 있다. 이전 결과는 반대 방향이므로 지운다
+  function handleSwap() {
+    setStart(end)
+    setEnd(start)
+    clearResult()
+  }
+
   function handleReset() {
     setStart(null)
     setEnd(null)
@@ -92,9 +99,20 @@ function AlgorithmLabPage() {
                 ? '도착지를 클릭하세요.'
                 : '다시 클릭하면 새 출발지를 고릅니다.'}
           </p>
-          <button type="button" className="secondary" onClick={handleReset} disabled={!start}>
-            초기화
-          </button>
+          <div className="lab-actions">
+            <button
+              type="button"
+              className="secondary"
+              onClick={handleSwap}
+              disabled={!start || !end}
+              title="출발지와 도착지 바꾸기"
+            >
+              ⇅ 방향 바꾸기
+            </button>
+            <button type="button" className="secondary" onClick={handleReset} disabled={!start}>
+              초기화
+            </button>
+          </div>
         </section>
         <section className="panel">
           <h2>알고리즘</h2>

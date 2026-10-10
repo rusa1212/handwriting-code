@@ -217,6 +217,21 @@
   }
 }
 
+/* 실험실 [⇅ 방향 바꾸기] [초기화] */
+.lab-actions {
+  display: flex;
+  gap: 8px;
+  white-space: nowrap;
+
+  .secondary:first-child {
+    flex: 2;
+  }
+
+  .secondary:last-child {
+    flex: 1;
+  }
+}
+
 /* 실험실 알고리즘 선택: ○ BFS  ○ DFS  ○ Dijkstra  ● A* */
 .algorithm-options {
   display: flex;
