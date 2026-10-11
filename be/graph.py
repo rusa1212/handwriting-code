@@ -13,7 +13,7 @@ NodeId = int | str
 
 EARTH_RADIUS_M = 6_371_000
 
-OSM_PATH = Path(__file__).parent / "data" / "gumi_roads.json"  # fetch_osm.py가 만든 파일
+OSM_PATH = Path(__file__).parent / "data" / "gwangju_roads.json"  # fetch_osm.py가 만든 파일
 
 
 def haversine(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
@@ -127,12 +127,12 @@ def sample_graph() -> Graph:
         │
         G
 
-    좌표는 구미역 근처 격자, 가중치(m)는 직선거리보다 작지 않게 정했다 (A* 휴리스틱 검증용)
+    좌표는 전남대 근처 격자, 가중치(m)는 직선거리보다 작지 않게 정했다 (A* 휴리스틱 검증용)
     B ─ E는 일부러 돌아가는 길(350m)로 두어 B → G 최단 경로가 B-A-D-E-G(440m)가 되게 했다
     간선 수로는 B-E-G(470m)가 가장 적으므로 BFS와 Dijkstra의 결과가 달라진다
     """
     g = Graph()
-    base_lat, base_lng = 36.128, 128.330
+    base_lat, base_lng = 35.177, 126.907
     grid = {
         "A": (0, 0), "B": (0, 1), "C": (0, 2),
         "D": (1, 0), "E": (1, 1), "F": (1, 2),
@@ -214,7 +214,7 @@ def _print_sample() -> None:
                 print(f"  {u}-{v}: {w}m / 직선 {straight:.1f}m  {mark}")
 
     print("\n가장 가까운 노드")
-    for lat, lng in [(36.128, 128.330), (36.1272, 128.3312), (36.126, 128.3315), (36.140, 128.330)]:
+    for lat, lng in [(35.177, 126.907), (35.1762, 126.9082), (35.175, 126.9085), (35.189, 126.907)]:
         node_id, dist = g.nearest_node(lat, lng)
         print(f"  ({lat}, {lng}) → {node_id} ({dist:.1f}m)")
 
@@ -242,12 +242,12 @@ def _print_osm() -> None:
     lngs = [lng for _, lng in g.coords.values()]
     print(f"좌표 범위: 위도 {min(lats):.5f} ~ {max(lats):.5f}, 경도 {min(lngs):.5f} ~ {max(lngs):.5f}")
 
-    node_id, dist = g.nearest_node(36.1283, 128.3306)
-    print(f"구미역에서 가장 가까운 노드: {node_id} ({dist:.1f}m), 이웃 {len(g.neighbors(node_id))}개")
+    node_id, dist = g.nearest_node(35.1769, 126.9069)
+    print(f"전남대(캠퍼스 중심)에서 가장 가까운 노드: {node_id} ({dist:.1f}m), 이웃 {len(g.neighbors(node_id))}개")
 
 
 if __name__ == "__main__":
     print("[예제 그래프 A~G]")
     _print_sample()
-    print("\n[구미 OSM 그래프]")
+    print("\n[광주(전남대) OSM 그래프]")
     _print_osm()

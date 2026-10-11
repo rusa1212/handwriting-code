@@ -12,20 +12,20 @@ from graph import Graph, NodeId, load_osm_graph
 from schemas import LatLng, SearchResponse
 from search import ALGORITHMS
 
-# 가장 가까운 노드가 이보다 멀면 그래프 영역(구미역 주변 2km) 밖을 고른 것으로 본다
+# 가장 가까운 노드가 이보다 멀면 그래프 영역(전남대 주변 2km) 밖을 고른 것으로 본다
 MAX_SNAP_M = 500
 
 
 class OutOfAreaError(Exception):
     def __init__(self, label: str, distance: float) -> None:
-        super().__init__(f"{label}가 구미 실험 영역 밖입니다 (가장 가까운 도로까지 {distance:,.0f}m)")
+        super().__init__(f"{label}가 실험 영역 밖입니다 (가장 가까운 도로까지 {distance:,.0f}m)")
         self.label = label
         self.distance = distance
 
 
 @cache
 def get_graph() -> Graph:
-    """구미 OSM 그래프. 처음 부를 때 한 번만 JSON을 읽고 이후에는 같은 그래프를 돌려준다"""
+    """광주(전남대) OSM 그래프. 처음 부를 때 한 번만 JSON을 읽고 이후에는 같은 그래프를 돌려준다"""
     return load_osm_graph()
 
 
@@ -55,22 +55,23 @@ def run_search(start: LatLng, end: LatLng, algorithm: str) -> SearchResponse:
 
 
 def _check() -> None:
-    """3-2 확인: 구미역 → 근처 좌표를 네 알고리즘으로, 영역 밖 좌표는 오류가 나는지"""
-    gumi_station = LatLng(lat=36.1283, lng=128.3306)
-    nearby = LatLng(lat=36.1220, lng=128.3420)
-    outside = LatLng(lat=36.16, lng=128.34)  # 구미역 북쪽 3.5km
+    """3-2 확인: 전남대 주변 영역의 남서쪽 → 북동쪽을 네 알고리즘으로, 영역 밖 좌표는 오류가 나는지"""
+    # 캠퍼스 안 길은 받지 않아 캠퍼스 중심은 바깥 도로까지 약 300m 떨어지므로, 도로 위 두 점을 쓴다
+    sw = LatLng(lat=35.1735, lng=126.9000)  # 영역 남서쪽 (캠퍼스 서남쪽 주택가)
+    ne = LatLng(lat=35.1820, lng=126.9150)  # 영역 북동쪽, 직선거리 약 1.6km
+    outside = LatLng(lat=35.21, lng=126.9069)  # 전남대 북쪽 3.7km
 
-    print("[구미역 → 근처 좌표]")
+    print("[영역 남서쪽 → 북동쪽]")
     for name in ALGORITHMS:
-        r = run_search(gumi_station, nearby, name)
+        r = run_search(sw, ne, name)
         print(f"  {name:<8} 비용 {r.cost:>7,.0f}m, 경로 {len(r.path):>3}점, 방문 {len(r.visited_order):>4}개,"
               f" {r.elapsed_ms:.2f}ms")
 
-    r = run_search(gumi_station, gumi_station, "astar")
+    r = run_search(sw, sw, "astar")
     print(f"[출발 = 도착] 경로 {len(r.path)}점, 비용 {r.cost}")
 
     print("[영역 밖]")
-    for label, start, end in [("도착이 밖", gumi_station, outside), ("출발이 밖", outside, gumi_station)]:
+    for label, start, end in [("도착이 밖", sw, outside), ("출발이 밖", outside, sw)]:
         try:
             run_search(start, end, "dijkstra")
             print(f"  {label}: 오류가 나지 않음!")

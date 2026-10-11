@@ -1,6 +1,6 @@
 """OSM 도로망 내려받기 (LEVEL 4, 1-3단계)
 
-Overpass API로 구미역 주변 도로를 받아 data/gumi_roads.json에 저장한다
+Overpass API로 전남대(광주) 주변 도로를 받아 data/gwangju_roads.json에 저장한다
 서버는 이 파일만 읽으므로 영역을 바꿀 때만 다시 실행하면 된다:  python fetch_osm.py
 
 데이터 출처: © OpenStreetMap contributors (ODbL) — 화면에 표시할 때 출처를 적어야 한다
@@ -22,7 +22,7 @@ OVERPASS_URLS = [
 ]
 RETRY_WAITS_S = [0, 5, 15, 30, 60]  # 시도마다 기다리는 시간 (첫 시도는 바로)
 
-CENTER = (36.1283, 128.3306)  # 구미역
+CENTER = (35.1769, 126.9069)  # 전남대 용봉캠퍼스 (광주 북구)
 HALF_SIZE_M = 1000  # 중심에서 사방 1km → 2km × 2km
 
 # 자동차가 다니는 도로만 받는다 (인도·자전거길·계단·주차장 통로 등은 뺀다)
@@ -35,7 +35,7 @@ CAR_HIGHWAYS = [
 # 그래프를 만들 때 쓸 태그만 남긴다
 KEEP_TAGS = ["highway", "oneway", "maxspeed", "name", "junction"]
 
-OUT_PATH = Path(__file__).parent / "data" / "gumi_roads.json"
+OUT_PATH = Path(__file__).parent / "data" / "gwangju_roads.json"
 
 
 def bbox(center: tuple[float, float], half_size_m: float) -> tuple[float, float, float, float]:

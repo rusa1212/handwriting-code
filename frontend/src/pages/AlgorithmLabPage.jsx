@@ -1,10 +1,14 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { searchGraph } from '../api/client'
 import { LAB_BOUNDS, LAB_CENTER, LAB_LEVEL } from '../constants'
 import MapView from '../components/MapView'
 
 // 클릭할 수 있는 영역 안내. MapView는 rects가 바뀌면 다시 그리므로 렌더마다 새 배열을 만들지 않게 밖에 둔다
 const LAB_RECTS = [LAB_BOUNDS]
+const NO_DOTS = [] // 결과가 없을 때도 같은 배열을 넘겨 점을 다시 그리지 않게 한다
+// 탐색 애니메이션: 프레임마다 보여줄 방문 노드 수 (60fps에서 초당 약 300개)
+// 알고리즘과 상관없이 같은 속도라야 A*가 Dijkstra보다 빨리 끝나는 것이 보인다
+const STEP = 5
 
 // 서버 algorithm 값 → 화면 이름, 고른 알고리즘 아래에 보여줄 한 줄 설명
 const ALGORITHMS = [
@@ -24,6 +28,7 @@ function AlgorithmLabPage() {
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [shownCount, setShownCount] = useState(0) // 재생 중 지도에 보이는 방문 노드 수 (visited_order 앞에서부터)
   const searchIdRef = useRef(0) // 실행 중에 출발/도착을 바꾸거나 다시 실행하면 이전 응답은 버린다
 
   // 출발/도착 핀. MapView는 markers가 바뀌면 다시 그리므로 좌표가 바뀔 때만 새 배열을 만든다
@@ -32,11 +37,28 @@ function AlgorithmLabPage() {
     [start, end],
   )
 
-  // 경로 선: 점이 2개 이상일 때만 그린다 (경로 없음 = 빈 목록, 출발 = 도착 = 점 1개)
+  // 재생 중: 방문 노드가 아직 다 나오지 않았다 (새 결과가 오면 shownCount는 0부터 시작)
+  const playing = result !== null && shownCount < result.visited_order.length
+
+  // 경로 선: 재생이 끝난 뒤, 점이 2개 이상일 때만 그린다 (경로 없음 = 빈 목록, 출발 = 도착 = 점 1개)
+  // 그전에 그리면 MapView가 경로에 맞춰 지도를 옮겨 퍼져 나가는 점이 화면 밖으로 밀려난다
   const routes = useMemo(
-    () => (result?.path.length > 1 ? [{ id: 'search', path: result.path }] : []),
-    [result],
+    () => (!playing && result?.path.length > 1 ? [{ id: 'search', path: result.path }] : []),
+    [result, playing],
   )
+
+  // 방문한 노드: 탐색 순서대로 앞에서부터 shownCount개만 보여준다
+  const dots = result ? result.visited_order : NO_DOTS
+
+  // 재생 중이면 다음 프레임에 방문 노드를 STEP개 더 보여준다. shownCount가 바뀌면 다시 실행되어 한 프레임씩 이어진다
+  // 진행 상황은 shownCount 하나뿐이라 건너뛰기(끝까지)·다시 보기(0으로)는 값만 바꾸면 되고,
+  // 결과가 지워지거나(출발/도착 변경) 탭을 옮기면 cleanup에서 예약한 프레임을 취소해 멈춘다
+  useEffect(() => {
+    if (!playing) return
+    const total = result.visited_order.length
+    const frameId = requestAnimationFrame(() => setShownCount((count) => Math.min(count + STEP, total)))
+    return () => cancelAnimationFrame(frameId)
+  }, [playing, shownCount, result])
 
   // 출발/도착이 바뀌면 이전 결과는 새 핀과 맞지 않으므로 지운다
   function clearResult() {
@@ -77,6 +99,7 @@ function AlgorithmLabPage() {
     try {
       const found = await searchGraph(start, end, algorithm)
       if (searchId !== searchIdRef.current) return
+      setShownCount(0) // 재생은 처음부터 (첫 프레임 전에 이전 결과 개수만큼 점이 보이지 않게)
       setResult({ algorithm, ...found })
     } catch (err) {
       if (searchId !== searchIdRef.current) return
@@ -139,8 +162,26 @@ function AlgorithmLabPage() {
         {result && (
           <section className="panel">
             <h2>결과 · {ALGORITHM_LABEL[result.algorithm]}</h2>
+            {playing && (
+              <p className="hint">
+                탐색 중 · 방문 {shownCount.toLocaleString()} / {result.visited_order.length.toLocaleString()}개
+              </p>
+            )}
+            {/* 재생 중에는 끝까지 바로 보기, 끝난 뒤에는 서버를 다시 부르지 않고 같은 결과를 처음부터 다시 재생 */}
+            <div className="lab-actions">
+              {playing ? (
+                <button type="button" className="secondary" onClick={() => setShownCount(result.visited_order.length)}>
+                  건너뛰기
+                </button>
+              ) : (
+                <button type="button" className="secondary" onClick={() => setShownCount(0)}>
+                  다시 보기
+                </button>
+              )}
+            </div>
+            {/* 경로를 못 찾았다는 것은 재생이 끝나야 알려준다. 숫자 요약은 서버 응답 그대로라 재생 중에도 보여준다 */}
             {result.cost === null ? (
-              <p className="hint">경로를 찾을 수 없습니다.</p>
+              !playing && <p className="hint">경로를 찾을 수 없습니다.</p>
             ) : (
               <dl className="lab-result">
                 <dt>경로 거리</dt>
@@ -169,6 +210,8 @@ function AlgorithmLabPage() {
         center={LAB_CENTER}
         level={LAB_LEVEL}
         rects={LAB_RECTS}
+        dots={dots}
+        dotCount={shownCount}
         routes={routes}
         markers={markers}
         selectedId="search"

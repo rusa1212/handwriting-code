@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react'
-import { getHealth } from './api/client'
+import { useState } from 'react'
 import AlgorithmLabPage from './pages/AlgorithmLabPage'
 import RecommendPage from './pages/RecommendPage'
 import './App.css'
@@ -11,13 +10,6 @@ const TABS = [
 
 function App() {
   const [tab, setTab] = useState('recommend')
-  const [backendStatus, setBackendStatus] = useState('확인 중...')
-
-  useEffect(() => {
-    getHealth()
-      .then((data) => setBackendStatus(data.status))
-      .catch(() => setBackendStatus('연결 실패'))
-  }, [])
 
   return (
     <main className="app">
@@ -34,9 +26,6 @@ function App() {
             </button>
           ))}
         </nav>
-        <p>
-          Backend: <code>{backendStatus}</code>
-        </p>
       </header>
       {tab === 'recommend' ? <RecommendPage /> : <AlgorithmLabPage />}
     </main>
