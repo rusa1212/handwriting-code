@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { loadKakaoMap } from '../lib/loadKakaoMap'
 
-const ROUTE_STYLE = { strokeWeight: 6, strokeColor: '#7a7a7a', strokeOpacity: 0.8, zIndex: 1 }
+const ROUTE_STYLE = { strokeWeight: 6, strokeColor: '#7a7a7a', strokeOpacity: 0.8, zIndex: 2 }
 // 선택된 경로: 진하고 굵게, 다른 선보다 위에 그린다
-const SELECTED_STYLE = { strokeWeight: 8, strokeColor: '#aa3bff', strokeOpacity: 0.95, zIndex: 2 }
+const SELECTED_STYLE = { strokeWeight: 8, strokeColor: '#aa3bff', strokeOpacity: 0.95, zIndex: 3 }
 // 영역 안내 사각형: 지도를 가리지 않게 옅게 채우고 점선 테두리, 경로보다 아래에 그린다
 const RECT_STYLE = {
   strokeWeight: 2,
@@ -13,6 +13,15 @@ const RECT_STYLE = {
   fillColor: '#aa3bff',
   fillOpacity: 0.06,
   zIndex: 0,
+}
+// 탐색 중 방문한 노드: 수백 개가 겹쳐도 도로가 보이게 테두리 없이 옅게, 영역 사각형 위·경로 선 아래에 그린다
+// 반지름이 미터 단위라 지도를 확대·축소하면 도로와 함께 커지고 작아진다 (LAB_LEVEL에서 지름 몇 px)
+const DOT_STYLE = {
+  radius: 6,
+  strokeWeight: 0,
+  fillColor: '#ff8a00',
+  fillOpacity: 0.6,
+  zIndex: 1,
 }
 
 // 지점 선택용 커서: 기본 crosshair는 얇은 검은 선이라 지도에 묻힌다
@@ -32,9 +41,19 @@ const PICK_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(PICK_CURSOR_SV
 // routes: [{ id, path: [[lat, lng], ...] }]
 // markers: [{ label, lat, lng }]
 // rects: [{ south, west, north, east }] 영역 표시용 사각형 (지도 범위 맞추기에는 넣지 않는다)
+// dots: [[lat, lng], ...] 탐색 중 방문한 노드 표시용 작은 원 (지도 범위 맞추기에는 넣지 않는다)
 // selectedId: 강조할 경로 id
 // onMapClick: ({ lat, lng }) => void, 넘기면 지도 클릭으로 지점을 고를 수 있다
-function MapView({ center, level = 4, routes = [], markers = [], selectedId = null, onMapClick = null, rects = [] }) {
+function MapView({
+  center,
+  level = 4,
+  routes = [],
+  markers = [],
+  selectedId = null,
+  onMapClick = null,
+  rects = [],
+  dots = [],
+}) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
   const polylinesRef = useRef(new Map()) // 경로 id → Polyline (선택 변경 시 다시 그리지 않고 스타일만 바꾼다)
@@ -135,6 +154,19 @@ function MapView({ center, level = 4, routes = [], markers = [], selectedId = nu
 
     return () => rectangles.forEach((r) => r.setMap(null))
   }, [ready, rects])
+
+  // 방문 노드 점도 경로·핀과 따로 그린다 (수백 개라 핀을 찍을 때마다 다시 만들지 않는다)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!ready || !map) return
+    const { kakao } = window
+
+    const circles = dots.map(
+      ([lat, lng]) => new kakao.maps.Circle({ map, center: new kakao.maps.LatLng(lat, lng), ...DOT_STYLE }),
+    )
+
+    return () => circles.forEach((c) => c.setMap(null))
+  }, [ready, dots])
 
   // onMapClick이 있을 때만 지도 클릭을 받는다 (지점 선택 모드). 커서도 눈에 띄는 십자 모양으로 바꾼다
   useEffect(() => {

@@ -5,6 +5,7 @@ import MapView from '../components/MapView'
 
 // 클릭할 수 있는 영역 안내. MapView는 rects가 바뀌면 다시 그리므로 렌더마다 새 배열을 만들지 않게 밖에 둔다
 const LAB_RECTS = [LAB_BOUNDS]
+const NO_DOTS = [] // 결과가 없을 때도 같은 배열을 넘겨 점을 다시 그리지 않게 한다
 
 // 서버 algorithm 값 → 화면 이름, 고른 알고리즘 아래에 보여줄 한 줄 설명
 const ALGORITHMS = [
@@ -37,6 +38,9 @@ function AlgorithmLabPage() {
     () => (result?.path.length > 1 ? [{ id: 'search', path: result.path }] : []),
     [result],
   )
+
+  // 방문한 노드: 지금은 결과가 오면 한 번에 전부 찍는다 (5-3에서 순서대로 재생)
+  const dots = result ? result.visited_order : NO_DOTS
 
   // 출발/도착이 바뀌면 이전 결과는 새 핀과 맞지 않으므로 지운다
   function clearResult() {
@@ -169,6 +173,7 @@ function AlgorithmLabPage() {
         center={LAB_CENTER}
         level={LAB_LEVEL}
         rects={LAB_RECTS}
+        dots={dots}
         routes={routes}
         markers={markers}
         selectedId="search"
