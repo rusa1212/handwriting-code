@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { searchGraph } from '../api/client'
 import { LAB_BOUNDS, LAB_CENTER, LAB_LEVEL } from '../constants'
 import MapView from '../components/MapView'
@@ -6,6 +6,9 @@ import MapView from '../components/MapView'
 // 클릭할 수 있는 영역 안내. MapView는 rects가 바뀌면 다시 그리므로 렌더마다 새 배열을 만들지 않게 밖에 둔다
 const LAB_RECTS = [LAB_BOUNDS]
 const NO_DOTS = [] // 결과가 없을 때도 같은 배열을 넘겨 점을 다시 그리지 않게 한다
+// 탐색 애니메이션: 프레임마다 보여줄 방문 노드 수 (60fps에서 초당 약 300개)
+// 알고리즘과 상관없이 같은 속도라야 A*가 Dijkstra보다 빨리 끝나는 것이 보인다
+const STEP = 5
 
 // 서버 algorithm 값 → 화면 이름, 고른 알고리즘 아래에 보여줄 한 줄 설명
 const ALGORITHMS = [
@@ -25,6 +28,7 @@ function AlgorithmLabPage() {
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [shownCount, setShownCount] = useState(0) // 재생 중 지도에 보이는 방문 노드 수 (visited_order 앞에서부터)
   const searchIdRef = useRef(0) // 실행 중에 출발/도착을 바꾸거나 다시 실행하면 이전 응답은 버린다
 
   // 출발/도착 핀. MapView는 markers가 바뀌면 다시 그리므로 좌표가 바뀔 때만 새 배열을 만든다
@@ -39,8 +43,26 @@ function AlgorithmLabPage() {
     [result],
   )
 
-  // 방문한 노드: 지금은 결과가 오면 한 번에 전부 찍는다 (5-3에서 순서대로 재생)
+  // 방문한 노드: 탐색 순서대로 앞에서부터 shownCount개만 보여준다
   const dots = result ? result.visited_order : NO_DOTS
+
+  // 새 결과가 오면 방문 노드를 프레임마다 STEP개씩 늘려 재생한다
+  // 결과가 바뀌거나 지워지면(출발/도착 변경, 다시 실행) 또는 탭을 옮기면 cleanup에서 재생을 멈춘다
+  useEffect(() => {
+    if (!result) return
+    const total = result.visited_order.length
+    let count = 0
+    let frameId
+
+    function tick() {
+      count = Math.min(count + STEP, total)
+      setShownCount(count)
+      if (count < total) frameId = requestAnimationFrame(tick)
+    }
+    frameId = requestAnimationFrame(tick)
+
+    return () => cancelAnimationFrame(frameId)
+  }, [result])
 
   // 출발/도착이 바뀌면 이전 결과는 새 핀과 맞지 않으므로 지운다
   function clearResult() {
@@ -81,6 +103,7 @@ function AlgorithmLabPage() {
     try {
       const found = await searchGraph(start, end, algorithm)
       if (searchId !== searchIdRef.current) return
+      setShownCount(0) // 재생은 처음부터 (첫 프레임 전에 이전 결과 개수만큼 점이 보이지 않게)
       setResult({ algorithm, ...found })
     } catch (err) {
       if (searchId !== searchIdRef.current) return
@@ -174,6 +197,7 @@ function AlgorithmLabPage() {
         level={LAB_LEVEL}
         rects={LAB_RECTS}
         dots={dots}
+        dotCount={shownCount}
         routes={routes}
         markers={markers}
         selectedId="search"
