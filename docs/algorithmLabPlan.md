@@ -386,7 +386,7 @@ D ─ E ─ F
 - 상태 `shownCount`: 새 결과가 오면 0부터 시작해 `requestAnimationFrame`마다 `STEP`개씩 늘린다. `visited_order.length`에 닿으면 멈춘다.
 - `STEP`은 **알고리즘과 상관없이 고정** (예: 프레임당 5개 ≈ 초당 300개 → Dijkstra 722개 약 2.4초, A\* 49개 1초 미만).
   - 전체 시간을 맞추면 A\*와 Dijkstra가 똑같이 끝나 보인다. 고정 속도여야 "A\*가 빨리 끝난다"가 눈에 보인다 (6단계 비교와 이어짐).
-- 재생은 `result`를 의존하는 `useEffect`에서 시작하고, cleanup에서 `cancelAnimationFrame` → 다음 경우 자동으로 멈춘다:
+- 재생 중(`shownCount < visited_order.length`)이면 `useEffect`가 다음 프레임 하나를 예약해 `shownCount`를 늘리고, 값이 바뀌면 다시 실행되어 이어진다. cleanup에서 `cancelAnimationFrame` → 다음 경우 자동으로 멈춘다:
   - 출발/도착을 바꾸거나 방향 바꾸기·초기화 (`clearResult()`가 `result`를 지움)
   - 다시 실행 (새 `result`), 다른 탭으로 이동 (언마운트)
 - `result`가 없으면 `dots = []`.
@@ -403,7 +403,7 @@ D ─ E ─ F
 
 - "건너뛰기": `shownCount`를 바로 끝까지 → 재생이 멈추고 경로가 그려진다 (예외 상황 표의 "애니메이션이 느림" 대응).
 - "다시 보기": 서버를 다시 부르지 않고 `shownCount`를 0으로 되돌려 같은 결과를 다시 재생한다.
-  - 재생 effect가 `result`에만 의존하면 다시 시작되지 않으므로, 재생 회차 번호(`replayKey` 등)를 상태로 두고 의존성에 넣는다.
+  - 진행 상황이 `shownCount` 하나뿐이라 0으로 되돌리기만 하면 재생 effect가 다시 돈다. 건너뛰기도 끝까지 올리기만 하면 된다 (effect 안 지역 변수로 세면 건너뛴 뒤 다음 프레임이 값을 되돌리므로 이렇게 바꿨다).
 - 재생 중에는 "건너뛰기", 끝난 뒤에는 "다시 보기"만 보여 준다.
 
 ### 5-6 화면 확인

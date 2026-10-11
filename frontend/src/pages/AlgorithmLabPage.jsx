@@ -50,23 +50,15 @@ function AlgorithmLabPage() {
   // 방문한 노드: 탐색 순서대로 앞에서부터 shownCount개만 보여준다
   const dots = result ? result.visited_order : NO_DOTS
 
-  // 새 결과가 오면 방문 노드를 프레임마다 STEP개씩 늘려 재생한다
-  // 결과가 바뀌거나 지워지면(출발/도착 변경, 다시 실행) 또는 탭을 옮기면 cleanup에서 재생을 멈춘다
+  // 재생 중이면 다음 프레임에 방문 노드를 STEP개 더 보여준다. shownCount가 바뀌면 다시 실행되어 한 프레임씩 이어진다
+  // 진행 상황은 shownCount 하나뿐이라 건너뛰기(끝까지)·다시 보기(0으로)는 값만 바꾸면 되고,
+  // 결과가 지워지거나(출발/도착 변경) 탭을 옮기면 cleanup에서 예약한 프레임을 취소해 멈춘다
   useEffect(() => {
-    if (!result) return
+    if (!playing) return
     const total = result.visited_order.length
-    let count = 0
-    let frameId
-
-    function tick() {
-      count = Math.min(count + STEP, total)
-      setShownCount(count)
-      if (count < total) frameId = requestAnimationFrame(tick)
-    }
-    frameId = requestAnimationFrame(tick)
-
+    const frameId = requestAnimationFrame(() => setShownCount((count) => Math.min(count + STEP, total)))
     return () => cancelAnimationFrame(frameId)
-  }, [result])
+  }, [playing, shownCount, result])
 
   // 출발/도착이 바뀌면 이전 결과는 새 핀과 맞지 않으므로 지운다
   function clearResult() {
@@ -175,6 +167,18 @@ function AlgorithmLabPage() {
                 탐색 중 · 방문 {shownCount.toLocaleString()} / {result.visited_order.length.toLocaleString()}개
               </p>
             )}
+            {/* 재생 중에는 끝까지 바로 보기, 끝난 뒤에는 서버를 다시 부르지 않고 같은 결과를 처음부터 다시 재생 */}
+            <div className="lab-actions">
+              {playing ? (
+                <button type="button" className="secondary" onClick={() => setShownCount(result.visited_order.length)}>
+                  건너뛰기
+                </button>
+              ) : (
+                <button type="button" className="secondary" onClick={() => setShownCount(0)}>
+                  다시 보기
+                </button>
+              )}
+            </div>
             {/* 경로를 못 찾았다는 것은 재생이 끝나야 알려준다. 숫자 요약은 서버 응답 그대로라 재생 중에도 보여준다 */}
             {result.cost === null ? (
               !playing && <p className="hint">경로를 찾을 수 없습니다.</p>
