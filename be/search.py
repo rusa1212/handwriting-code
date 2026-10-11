@@ -238,7 +238,7 @@ EXPECTED = {
 def _check_algorithms() -> None:
     g = sample_graph()
     # 다른 노드와 이어지지 않은 노드: 경로가 없을 때를 확인한다
-    g.add_node("H", 36.126, 128.333)
+    g.add_node("H", 35.175, 126.910)
     for name, search in ALGORITHMS.items():
         print(f"  [{name}]")
         cases = [(start, end, *want) for (start, end), want in EXPECTED.get(name, {}).items()]
