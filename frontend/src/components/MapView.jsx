@@ -42,6 +42,7 @@ const PICK_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(PICK_CURSOR_SV
 // markers: [{ label, lat, lng }]
 // rects: [{ south, west, north, east }] 영역 표시용 사각형 (지도 범위 맞추기에는 넣지 않는다)
 // dots: [[lat, lng], ...] 탐색 중 방문한 노드 표시용 작은 원 (지도 범위 맞추기에는 넣지 않는다)
+// dotCount: dots 중 앞에서부터 몇 개를 보여줄지 (기본값 전부, 탐색 애니메이션용)
 // selectedId: 강조할 경로 id
 // onMapClick: ({ lat, lng }) => void, 넘기면 지도 클릭으로 지점을 고를 수 있다
 function MapView({
@@ -53,10 +54,12 @@ function MapView({
   onMapClick = null,
   rects = [],
   dots = [],
+  dotCount = Infinity,
 }) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
   const polylinesRef = useRef(new Map()) // 경로 id → Polyline (선택 변경 시 다시 그리지 않고 스타일만 바꾼다)
+  const dotsRef = useRef({ circles: [], shown: 0 }) // 만들어 둔 방문 노드 원 + 그중 지도에 올린 개수 (앞에서부터)
   const [ready, setReady] = useState(false)
   const [error, setError] = useState(null)
 
@@ -156,17 +159,34 @@ function MapView({
   }, [ready, rects])
 
   // 방문 노드 점도 경로·핀과 따로 그린다 (수백 개라 핀을 찍을 때마다 다시 만들지 않는다)
+  // dots가 바뀔 때 원을 전부 만들어 두기만 하고, 지도에 올리는 것은 아래 effect가 dotCount만큼 한다
   useEffect(() => {
-    const map = mapRef.current
-    if (!ready || !map) return
+    if (!ready) return
     const { kakao } = window
 
     const circles = dots.map(
-      ([lat, lng]) => new kakao.maps.Circle({ map, center: new kakao.maps.LatLng(lat, lng), ...DOT_STYLE }),
+      ([lat, lng]) => new kakao.maps.Circle({ center: new kakao.maps.LatLng(lat, lng), ...DOT_STYLE }),
     )
+    dotsRef.current = { circles, shown: 0 }
 
-    return () => circles.forEach((c) => c.setMap(null))
+    return () => {
+      circles.forEach((c) => c.setMap(null))
+      dotsRef.current = { circles: [], shown: 0 }
+    }
   }, [ready, dots])
+
+  // 앞에서부터 dotCount개만 지도에 올린다. 재생 중에는 프레임마다 바뀌므로 지금 보이는 개수와의 차이만 켜고 끈다
+  // (dots가 바뀌면 위 effect가 원을 새로 만든 뒤 이 effect도 다시 실행된다)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!ready || !map) return
+    const state = dotsRef.current
+    const target = Math.min(dotCount, state.circles.length)
+
+    for (let i = state.shown; i < target; i++) state.circles[i].setMap(map)
+    for (let i = target; i < state.shown; i++) state.circles[i].setMap(null)
+    state.shown = target
+  }, [ready, dots, dotCount])
 
   // onMapClick이 있을 때만 지도 클릭을 받는다 (지점 선택 모드). 커서도 눈에 띄는 십자 모양으로 바꾼다
   useEffect(() => {
