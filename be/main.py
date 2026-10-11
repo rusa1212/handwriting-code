@@ -64,7 +64,7 @@ def recommend_route(req: RecommendRequest) -> RecommendResponse:
     return recommend(req.routes, req.weights)
 
 
-# LEVEL 4: 구미 도로망 그래프에서 직접 구현한 알고리즘으로 경로를 찾고 탐색 과정(visited_order)도 돌려준다
+# LEVEL 4: 광주(전남대 주변) 도로망 그래프에서 직접 구현한 알고리즘으로 경로를 찾고 탐색 과정(visited_order)도 돌려준다
 # 경로가 없으면 오류가 아니라 path = [], cost = null로 응답한다
 @app.post("/api/search")
 def search(req: SearchRequest) -> SearchResponse:

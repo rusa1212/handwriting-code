@@ -13,7 +13,7 @@ NodeId = int | str
 
 EARTH_RADIUS_M = 6_371_000
 
-OSM_PATH = Path(__file__).parent / "data" / "gumi_roads.json"  # fetch_osm.py가 만든 파일
+OSM_PATH = Path(__file__).parent / "data" / "gwangju_roads.json"  # fetch_osm.py가 만든 파일
 
 
 def haversine(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
@@ -242,12 +242,12 @@ def _print_osm() -> None:
     lngs = [lng for _, lng in g.coords.values()]
     print(f"좌표 범위: 위도 {min(lats):.5f} ~ {max(lats):.5f}, 경도 {min(lngs):.5f} ~ {max(lngs):.5f}")
 
-    node_id, dist = g.nearest_node(36.1283, 128.3306)
-    print(f"구미역에서 가장 가까운 노드: {node_id} ({dist:.1f}m), 이웃 {len(g.neighbors(node_id))}개")
+    node_id, dist = g.nearest_node(35.1769, 126.9069)
+    print(f"전남대(캠퍼스 중심)에서 가장 가까운 노드: {node_id} ({dist:.1f}m), 이웃 {len(g.neighbors(node_id))}개")
 
 
 if __name__ == "__main__":
     print("[예제 그래프 A~G]")
     _print_sample()
-    print("\n[구미 OSM 그래프]")
+    print("\n[광주(전남대) OSM 그래프]")
     _print_osm()

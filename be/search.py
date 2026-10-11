@@ -256,7 +256,7 @@ def _check_algorithms() -> None:
 
 
 def _check_osm(pairs: int = 200, seed: int = 0) -> None:
-    """2-6 확인: 구미 OSM 그래프에서 무작위 출발/도착 쌍으로 네 알고리즘을 비교한다
+    """2-6 확인: 광주(전남대) OSM 그래프에서 무작위 출발/도착 쌍으로 네 알고리즘을 비교한다
 
     - 경로가 모두 있어야 한다 (가장 큰 덩어리만 남겼으므로 어떤 두 노드도 이어져 있다)
     - 다익스트라와 A*의 비용이 같고, A*의 방문 수가 다익스트라보다 많지 않아야 한다
@@ -310,7 +310,7 @@ def _check_osm(pairs: int = 200, seed: int = 0) -> None:
         ok = result.path == [node] and result.cost == 0
         print(f"    {name:<8} 출발 = 도착: 경로 {len(result.path)}개, 비용 {result.cost:g}m  {'OK' if ok else '다름!'}")
     # 그래프 영역 밖 클릭: 가장 가까운 노드가 멀다. 3단계 API에서 이 거리로 오류를 낸다 (예: 500m 이상)
-    for label, lat, lng in [("구미역", 36.1283, 128.3306), ("영역 밖(구미역 북쪽 3.5km)", 36.16, 128.34)]:
+    for label, lat, lng in [("전남대", 35.1769, 126.9069), ("영역 밖(전남대 북쪽 3.7km)", 35.21, 126.9069)]:
         node_id, dist = g.nearest_node(lat, lng)
         print(f"    {label} ({lat}, {lng}) → 가장 가까운 노드 {node_id}, {dist:,.0f}m")
 
@@ -322,5 +322,5 @@ if __name__ == "__main__":
     _check_common()
     print("\n[예제 그래프 알고리즘 확인]")
     _check_algorithms()
-    print("\n[구미 OSM 그래프 확인]")
+    print("\n[광주(전남대) OSM 그래프 확인]")
     _check_osm()
