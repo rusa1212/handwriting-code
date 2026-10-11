@@ -37,10 +37,14 @@ function AlgorithmLabPage() {
     [start, end],
   )
 
-  // 경로 선: 점이 2개 이상일 때만 그린다 (경로 없음 = 빈 목록, 출발 = 도착 = 점 1개)
+  // 재생 중: 방문 노드가 아직 다 나오지 않았다 (새 결과가 오면 shownCount는 0부터 시작)
+  const playing = result !== null && shownCount < result.visited_order.length
+
+  // 경로 선: 재생이 끝난 뒤, 점이 2개 이상일 때만 그린다 (경로 없음 = 빈 목록, 출발 = 도착 = 점 1개)
+  // 그전에 그리면 MapView가 경로에 맞춰 지도를 옮겨 퍼져 나가는 점이 화면 밖으로 밀려난다
   const routes = useMemo(
-    () => (result?.path.length > 1 ? [{ id: 'search', path: result.path }] : []),
-    [result],
+    () => (!playing && result?.path.length > 1 ? [{ id: 'search', path: result.path }] : []),
+    [result, playing],
   )
 
   // 방문한 노드: 탐색 순서대로 앞에서부터 shownCount개만 보여준다
@@ -166,8 +170,14 @@ function AlgorithmLabPage() {
         {result && (
           <section className="panel">
             <h2>결과 · {ALGORITHM_LABEL[result.algorithm]}</h2>
+            {playing && (
+              <p className="hint">
+                탐색 중 · 방문 {shownCount.toLocaleString()} / {result.visited_order.length.toLocaleString()}개
+              </p>
+            )}
+            {/* 경로를 못 찾았다는 것은 재생이 끝나야 알려준다. 숫자 요약은 서버 응답 그대로라 재생 중에도 보여준다 */}
             {result.cost === null ? (
-              <p className="hint">경로를 찾을 수 없습니다.</p>
+              !playing && <p className="hint">경로를 찾을 수 없습니다.</p>
             ) : (
               <dl className="lab-result">
                 <dt>경로 거리</dt>
