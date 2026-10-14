@@ -32,8 +32,14 @@ CAR_HIGHWAYS = [
     "living_street",
 ]
 
-# 그래프를 만들 때 쓸 태그만 남긴다
-KEEP_TAGS = ["highway", "oneway", "maxspeed", "name", "junction"]
+# 전남대 캠퍼스 안 길은 대부분 차량 통행로(highway=service)라 위 목록에 안 걸려 캠퍼스가 빈 공간이 된다
+# 캠퍼스 경계 안의 service만 더 받는다 (영역 전체의 service를 받으면 건물 진입로·주차장 통로까지 잔뜩 들어온다)
+# 인도·계단 등 보행로는 그대로 뺀다: 자동차 도로 그래프라서 경로가 인도로 지름길을 내면 안 된다
+CAMPUS_WAY_ID = 105125653  # OSM에서 amenity=university, name=전남대학교인 경계 way (용봉캠퍼스)
+CAMPUS_SKIP_SERVICES = ["parking_aisle"]  # service 중에서도 주차장 안 통로는 뺀다
+
+# 그래프를 만들 때 쓸 태그만 남긴다 (service: 캠퍼스에서 받은 차량 통행로 종류)
+KEEP_TAGS = ["highway", "oneway", "maxspeed", "name", "junction", "service"]
 
 OUT_PATH = Path(__file__).parent / "data" / "gwangju_roads.json"
 
@@ -50,10 +56,17 @@ def bbox(center: tuple[float, float], half_size_m: float) -> tuple[float, float,
 def build_query(box: tuple[float, float, float, float]) -> str:
     south, west, north, east = box
     highways = "|".join(CAR_HIGHWAYS)
-    # 도로(way)를 받고, 그 도로가 지나는 점(node)의 좌표도 같이 받는다
+    skip_services = "|".join(CAMPUS_SKIP_SERVICES)
+    # 캠퍼스 경계 way를 영역(area)으로 바꾼 뒤, 자동차 도로 + 캠퍼스 안 차량 통행로를 합쳐 받는다
+    # 그 도로들이 지나는 점(node)의 좌표도 같이 받는다
     return f"""
 [out:json][timeout:60];
-way["highway"~"^({highways})$"]({south},{west},{north},{east});
+way({CAMPUS_WAY_ID});
+map_to_area->.campus;
+(
+  way["highway"~"^({highways})$"]({south},{west},{north},{east});
+  way["highway"="service"]["service"!~"^({skip_services})$"](area.campus);
+);
 (._;>;);
 out body;
 """

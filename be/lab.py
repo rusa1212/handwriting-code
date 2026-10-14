@@ -56,7 +56,7 @@ def run_search(start: LatLng, end: LatLng, algorithm: str) -> SearchResponse:
 
 def _check() -> None:
     """3-2 확인: 전남대 주변 영역의 남서쪽 → 북동쪽을 네 알고리즘으로, 영역 밖 좌표는 오류가 나는지"""
-    # 캠퍼스 안 길은 받지 않아 캠퍼스 중심은 바깥 도로까지 약 300m 떨어지므로, 도로 위 두 점을 쓴다
+    # 영역 양 끝의 도로 위 두 점을 쓴다 (캠퍼스 안 차량 통행로를 넣은 뒤로 최단 경로는 캠퍼스를 가로지른다)
     sw = LatLng(lat=35.1735, lng=126.9000)  # 영역 남서쪽 (캠퍼스 서남쪽 주택가)
     ne = LatLng(lat=35.1820, lng=126.9150)  # 영역 북동쪽, 직선거리 약 1.6km
     outside = LatLng(lat=35.21, lng=126.9069)  # 전남대 북쪽 3.7km
