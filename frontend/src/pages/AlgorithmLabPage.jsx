@@ -25,6 +25,13 @@ const ALGORITHM_LABEL = Object.fromEntries(ALGORITHMS.map((a) => [a.id, a.label]
 const ALGORITHM_DESCRIPTION = Object.fromEntries(ALGORITHMS.map((a) => [a.id, a.description]))
 const COMPARE_SIDES = ['왼쪽 지도', '오른쪽 지도']
 
+// 방문 노드 count개를 다 보여주는 데 걸리는 재생 길이 (×1 속도, 60fps 기준)
+// 실제로 걸린 시간은 속도·화면 주사율에 따라 달라지므로, 알고리즘끼리 같은 단위로 비교하려고 개수에서 계산한다
+function playLength(count) {
+  const frames = Math.ceil(count / STEP)
+  return `${frames.toLocaleString()}프레임 (약 ${(frames / 60).toFixed(1)}초)`
+}
+
 // 지도 한 장: 결과 하나의 방문 노드를 앞에서부터 shown개 보여주고, 자기 결과가 다 나오면 경로를 그린다
 // 비교 모드에서는 두 장이 같은 shown을 받으므로 같은 속도로 재생되고, 방문 노드가 적은 쪽이 먼저 끝난다
 // label: 지도 위에 띄울 알고리즘 이름 (단일 모드는 사이드바에 결과가 있으므로 넘기지 않는다)
@@ -59,7 +66,7 @@ function LabMap({ label = null, result, shown, dotHead, level, markers, onMapCli
           <strong>{label}</strong>
           {result &&
             (done
-              ? ` · ✅ 완료 · 방문 ${total.toLocaleString()}개${result.cost === null ? ' · 경로 없음' : ''}`
+              ? ` · ✅ 완료 · 방문 ${total.toLocaleString()}개 · ${playLength(total)}${result.cost === null ? ' · 경로 없음' : ''}`
               : ` · 방문 ${shown.toLocaleString()} / ${total.toLocaleString()}개`)}
         </div>
       )}
