@@ -60,6 +60,7 @@ const PICK_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(PICK_CURSOR_SV
 // dots: [[lat, lng], ...] 탐색 중 방문한 노드 표시용 작은 원 (지도 범위 맞추기에는 넣지 않는다)
 // dotCount: dots 중 앞에서부터 몇 개를 보여줄지 (기본값 전부, 탐색 애니메이션용)
 // dotHead: 재생 중 마지막으로 보인 몇 개를 탐색 경계로 강조할지 (기본값 0 = 강조 없음, 전부 보이면 강조하지 않는다)
+// fitRoutes: 경로가 생기면 경로와 핀에 맞춰 지도 범위를 옮길지 (기본값 true, 실험실은 영역 전체 화면을 유지하려고 끈다)
 // selectedId: 강조할 경로 id
 // onMapClick: ({ lat, lng }) => void, 넘기면 지도 클릭으로 지점을 고를 수 있다
 function MapView({
@@ -73,6 +74,7 @@ function MapView({
   dots = [],
   dotCount = Infinity,
   dotHead = 0,
+  fitRoutes = true,
 }) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
@@ -147,14 +149,14 @@ function MapView({
     }
 
     // 경로가 있으면 경로와 핀이 전부 화면에 들어오도록 범위를 맞춘다
-    // (경로 없이 핀만 있을 때는 부모가 center/level로 위치를 정한다)
-    if (routes.length > 0) map.setBounds(bounds)
+    // (경로 없이 핀만 있을 때, fitRoutes가 false일 때는 부모가 center/level로 위치를 정한다)
+    if (fitRoutes && routes.length > 0) map.setBounds(bounds)
 
     return () => {
       overlays.forEach((o) => o.setMap(null))
       polylines.clear()
     }
-  }, [ready, routes, markers])
+  }, [ready, routes, markers, fitRoutes])
 
   // 영역 사각형은 경로·핀과 따로 그린다 (핀을 찍을 때마다 다시 그리지 않고, 경로에 맞춘 지도 범위에도 영향이 없다)
   useEffect(() => {

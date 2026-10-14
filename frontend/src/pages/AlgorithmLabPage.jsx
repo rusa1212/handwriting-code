@@ -215,6 +215,8 @@ function AlgorithmLabPage() {
         dots={dots}
         dotCount={shownCount}
         dotHead={DOT_HEAD}
+        // 탐색 범위(점)가 경로보다 넓으므로 경로에 맞춰 확대하지 않고 영역 전체 화면을 그대로 둔다
+        fitRoutes={false}
         routes={routes}
         markers={markers}
         selectedId="search"
