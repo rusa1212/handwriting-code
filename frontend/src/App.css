@@ -233,7 +233,9 @@
 }
 
 /* 실험실 알고리즘 선택: ○ BFS  ○ DFS  ○ Dijkstra  ● A* */
-.algorithm-options {
+/* 재생 속도도 같은 모양: 속도 ○ ×0.5  ● ×1  ○ ×2  ○ ×4 */
+.algorithm-options,
+.speed-options {
   display: flex;
   flex-wrap: wrap;
   gap: 4px 16px;

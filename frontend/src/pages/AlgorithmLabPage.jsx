@@ -9,8 +9,10 @@ const NO_DOTS = [] // 결과가 없을 때도 같은 배열을 넘겨 점을 다
 // 탐색 애니메이션: 프레임마다 보여줄 방문 노드 수 (60fps에서 초당 약 300개)
 // 알고리즘과 상관없이 같은 속도라야 A*가 Dijkstra보다 빨리 끝나는 것이 보인다
 const STEP = 5
-// 재생 중 방금 방문한 점을 탐색 경계로 강조할 개수 (약 6프레임 = 0.1초 분량)
-const DOT_HEAD = STEP * 6
+// 재생 속도 배율: 프레임마다 STEP × 배율개를 보여준다 (×0.5는 2.5개라 소수로 쌓고 지도에는 내림한 개수만 보여준다)
+const SPEEDS = [0.5, 1, 2, 4]
+// 재생 중 방금 방문한 점을 탐색 경계로 강조할 프레임 수 (약 0.1초 분량). 속도를 올려도 경계 두께가 같게 개수는 배율을 곱한다
+const DOT_HEAD_FRAMES = 6
 
 // 서버 algorithm 값 → 화면 이름, 고른 알고리즘 아래에 보여줄 한 줄 설명
 const ALGORITHMS = [
@@ -30,7 +32,10 @@ function AlgorithmLabPage() {
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-  const [shownCount, setShownCount] = useState(0) // 재생 중 지도에 보이는 방문 노드 수 (visited_order 앞에서부터)
+  // 재생 중 지도에 보이는 방문 노드 수 (visited_order 앞에서부터). ×0.5 속도에서는 소수가 될 수 있다
+  const [shownCount, setShownCount] = useState(0)
+  const [paused, setPaused] = useState(false)
+  const [speed, setSpeed] = useState(1) // SPEEDS 중 하나. 새로 실행하거나 다시 봐도 그대로 둔다
   const searchIdRef = useRef(0) // 실행 중에 출발/도착을 바꾸거나 다시 실행하면 이전 응답은 버린다
 
   // 출발/도착 핀. MapView는 markers가 바뀌면 다시 그리므로 좌표가 바뀔 때만 새 배열을 만든다
@@ -49,18 +54,32 @@ function AlgorithmLabPage() {
     [result, playing],
   )
 
-  // 방문한 노드: 탐색 순서대로 앞에서부터 shownCount개만 보여준다
+  // 방문한 노드: 탐색 순서대로 앞에서부터 shown개만 보여준다 (지도와 진행 표시는 정수 개수)
   const dots = result ? result.visited_order : NO_DOTS
+  const shown = Math.floor(shownCount)
 
-  // 재생 중이면 다음 프레임에 방문 노드를 STEP개 더 보여준다. shownCount가 바뀌면 다시 실행되어 한 프레임씩 이어진다
+  // 재생 중이면 다음 프레임에 방문 노드를 STEP × speed개 더 보여준다. shownCount가 바뀌면 다시 실행되어 한 프레임씩 이어진다
   // 진행 상황은 shownCount 하나뿐이라 건너뛰기(끝까지)·다시 보기(0으로)는 값만 바꾸면 되고,
+  // 일시정지는 다음 프레임을 예약하지 않기만 하면 된다 (재개하면 이 effect가 다시 돌아 이어진다)
   // 결과가 지워지거나(출발/도착 변경) 탭을 옮기면 cleanup에서 예약한 프레임을 취소해 멈춘다
   useEffect(() => {
-    if (!playing) return
+    if (!playing || paused) return
     const total = result.visited_order.length
-    const frameId = requestAnimationFrame(() => setShownCount((count) => Math.min(count + STEP, total)))
+    const frameId = requestAnimationFrame(() => setShownCount((count) => Math.min(count + STEP * speed, total)))
     return () => cancelAnimationFrame(frameId)
-  }, [playing, shownCount, result])
+  }, [playing, paused, speed, shownCount, result])
+
+  // 같은 결과를 처음부터 다시 재생 (서버를 다시 부르지 않는다)
+  function replay() {
+    setShownCount(0)
+    setPaused(false)
+  }
+
+  // 끝까지 바로 보기: 재생이 멈추고 경로가 그려진다
+  function skip() {
+    setShownCount(result.visited_order.length)
+    setPaused(false)
+  }
 
   // 출발/도착이 바뀌면 이전 결과는 새 핀과 맞지 않으므로 지운다
   function clearResult() {
@@ -102,6 +121,7 @@ function AlgorithmLabPage() {
       const found = await searchGraph(start, end, algorithm)
       if (searchId !== searchIdRef.current) return
       setShownCount(0) // 재생은 처음부터 (첫 프레임 전에 이전 결과 개수만큼 점이 보이지 않게)
+      setPaused(false)
       setResult({ algorithm, ...found })
     } catch (err) {
       if (searchId !== searchIdRef.current) return
@@ -166,20 +186,35 @@ function AlgorithmLabPage() {
             <h2>결과 · {ALGORITHM_LABEL[result.algorithm]}</h2>
             {playing && (
               <p className="hint">
-                탐색 중 · 방문 {shownCount.toLocaleString()} / {result.visited_order.length.toLocaleString()}개
+                {paused ? '일시정지' : '탐색 중'} · 방문 {shown.toLocaleString()} /{' '}
+                {result.visited_order.length.toLocaleString()}개
               </p>
             )}
-            {/* 재생 중에는 끝까지 바로 보기, 끝난 뒤에는 서버를 다시 부르지 않고 같은 결과를 처음부터 다시 재생 */}
+            {/* 재생 중에는 일시정지/재개와 끝까지 바로 보기, 끝난 뒤에는 같은 결과를 처음부터 다시 재생 */}
             <div className="lab-actions">
               {playing ? (
-                <button type="button" className="secondary" onClick={() => setShownCount(result.visited_order.length)}>
-                  건너뛰기
-                </button>
+                <>
+                  <button type="button" className="secondary" onClick={() => setPaused((p) => !p)}>
+                    {paused ? '▶ 재개' : '⏸ 일시정지'}
+                  </button>
+                  <button type="button" className="secondary" onClick={skip}>
+                    건너뛰기
+                  </button>
+                </>
               ) : (
-                <button type="button" className="secondary" onClick={() => setShownCount(0)}>
+                <button type="button" className="secondary" onClick={replay}>
                   다시 보기
                 </button>
               )}
+            </div>
+            {/* 속도는 재생 중에 바꿔도 다음 프레임부터 바로 적용된다 */}
+            <div className="speed-options">
+              속도
+              {SPEEDS.map((s) => (
+                <label key={s}>
+                  <input type="radio" name="speed" checked={speed === s} onChange={() => setSpeed(s)} />×{s}
+                </label>
+              ))}
             </div>
             {/* 경로를 못 찾았다는 것은 재생이 끝나야 알려준다. 숫자 요약은 서버 응답 그대로라 재생 중에도 보여준다 */}
             {result.cost === null ? (
@@ -213,8 +248,8 @@ function AlgorithmLabPage() {
         level={LAB_LEVEL}
         rects={LAB_RECTS}
         dots={dots}
-        dotCount={shownCount}
-        dotHead={DOT_HEAD}
+        dotCount={shown}
+        dotHead={STEP * speed * DOT_HEAD_FRAMES}
         // 탐색 범위(점)가 경로보다 넓으므로 경로에 맞춰 확대하지 않고 영역 전체 화면을 그대로 둔다
         fitRoutes={false}
         routes={routes}
