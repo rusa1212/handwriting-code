@@ -19,9 +19,25 @@ const RECT_STYLE = {
 const DOT_STYLE = {
   radius: 6,
   strokeWeight: 0,
-  fillColor: '#ff8a00',
   fillOpacity: 0.6,
   zIndex: 1,
+}
+// 방문 순서대로 색을 바꿔 재생이 끝난 뒤에도 어느 쪽으로 먼저 퍼졌는지 보이게 한다 (처음 노랑 → 마지막 빨강)
+// 투명도로 차이를 내면 겹친 곳이 탁해지므로 색으로 낸다
+const DOT_FIRST_RGB = [0xff, 0xd4, 0x00]
+const DOT_LAST_RGB = [0xe0, 0x30, 0x1e]
+// 방금 방문한 점(탐색 경계): 크고 진한 다른 색으로 지금 탐색 중인 곳을 보여준다. 경로는 재생이 끝난 뒤에 그려지므로 같은 색이어도 겹치지 않는다
+const DOT_HEAD_STYLE = { radius: 9, fillColor: '#aa3bff', fillOpacity: 0.95 }
+
+// i번째 방문 노드의 보통 스타일 (전체 total개 중 순서에 따라 색을 섞는다)
+function dotStyle(i, total) {
+  const t = total > 1 ? i / (total - 1) : 0
+  const hex = DOT_FIRST_RGB.map((first, k) =>
+    Math.round(first + (DOT_LAST_RGB[k] - first) * t)
+      .toString(16)
+      .padStart(2, '0'),
+  ).join('')
+  return { ...DOT_STYLE, fillColor: `#${hex}` }
 }
 
 // 지점 선택용 커서: 기본 crosshair는 얇은 검은 선이라 지도에 묻힌다
@@ -43,6 +59,7 @@ const PICK_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(PICK_CURSOR_SV
 // rects: [{ south, west, north, east }] 영역 표시용 사각형 (지도 범위 맞추기에는 넣지 않는다)
 // dots: [[lat, lng], ...] 탐색 중 방문한 노드 표시용 작은 원 (지도 범위 맞추기에는 넣지 않는다)
 // dotCount: dots 중 앞에서부터 몇 개를 보여줄지 (기본값 전부, 탐색 애니메이션용)
+// dotHead: 재생 중 마지막으로 보인 몇 개를 탐색 경계로 강조할지 (기본값 0 = 강조 없음, 전부 보이면 강조하지 않는다)
 // selectedId: 강조할 경로 id
 // onMapClick: ({ lat, lng }) => void, 넘기면 지도 클릭으로 지점을 고를 수 있다
 function MapView({
@@ -55,11 +72,13 @@ function MapView({
   rects = [],
   dots = [],
   dotCount = Infinity,
+  dotHead = 0,
 }) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
   const polylinesRef = useRef(new Map()) // 경로 id → Polyline (선택 변경 시 다시 그리지 않고 스타일만 바꾼다)
-  const dotsRef = useRef({ circles: [], shown: 0 }) // 만들어 둔 방문 노드 원 + 그중 지도에 올린 개수 (앞에서부터)
+  // 만들어 둔 방문 노드 원 + 그중 지도에 올린 개수 (앞에서부터) + 강조 중인 경계의 시작 번호 (headStart ~ shown - 1)
+  const dotsRef = useRef({ circles: [], shown: 0, headStart: 0 })
   const [ready, setReady] = useState(false)
   const [error, setError] = useState(null)
 
@@ -164,29 +183,45 @@ function MapView({
     if (!ready) return
     const { kakao } = window
 
+    // 색은 방문 순서로 정해지므로 원을 만들 때 한 번만 정한다
     const circles = dots.map(
-      ([lat, lng]) => new kakao.maps.Circle({ center: new kakao.maps.LatLng(lat, lng), ...DOT_STYLE }),
+      ([lat, lng], i) =>
+        new kakao.maps.Circle({ center: new kakao.maps.LatLng(lat, lng), ...dotStyle(i, dots.length) }),
     )
-    dotsRef.current = { circles, shown: 0 }
+    dotsRef.current = { circles, shown: 0, headStart: 0 }
 
     return () => {
       circles.forEach((c) => c.setMap(null))
-      dotsRef.current = { circles: [], shown: 0 }
+      dotsRef.current = { circles: [], shown: 0, headStart: 0 }
     }
   }, [ready, dots])
 
   // 앞에서부터 dotCount개만 지도에 올린다. 재생 중에는 프레임마다 바뀌므로 지금 보이는 개수와의 차이만 켜고 끈다
+  // 경계 강조도 바뀐 원만 스타일을 바꾼다 (프레임마다 수십 개)
   // (dots가 바뀌면 위 effect가 원을 새로 만든 뒤 이 effect도 다시 실행된다)
   useEffect(() => {
     const map = mapRef.current
     if (!ready || !map) return
     const state = dotsRef.current
-    const target = Math.min(dotCount, state.circles.length)
+    const { circles } = state
+    const target = Math.min(dotCount, circles.length)
+    // 경계: 아직 다 보이지 않았을 때(재생 중) 마지막 dotHead개. 전부 보이면 비어 있다 (headStart = target)
+    const headStart = target < circles.length ? Math.max(0, target - dotHead) : target
 
-    for (let i = state.shown; i < target; i++) state.circles[i].setMap(map)
-    for (let i = target; i < state.shown; i++) state.circles[i].setMap(null)
+    for (let i = state.shown; i < target; i++) circles[i].setMap(map)
+    for (let i = target; i < state.shown; i++) circles[i].setMap(null)
+
+    // 이전 경계에서 빠진 원은 보통 스타일로, 새 경계에 들어온 원은 강조 스타일로
+    for (let i = state.headStart; i < state.shown; i++) {
+      if (i < headStart || i >= target) circles[i].setOptions(dotStyle(i, circles.length))
+    }
+    for (let i = headStart; i < target; i++) {
+      if (i < state.headStart || i >= state.shown) circles[i].setOptions(DOT_HEAD_STYLE)
+    }
+
     state.shown = target
-  }, [ready, dots, dotCount])
+    state.headStart = headStart
+  }, [ready, dots, dotCount, dotHead])
 
   // onMapClick이 있을 때만 지도 클릭을 받는다 (지점 선택 모드). 커서도 눈에 띄는 십자 모양으로 바꾼다
   useEffect(() => {

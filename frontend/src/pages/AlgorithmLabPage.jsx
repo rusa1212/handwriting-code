@@ -9,6 +9,8 @@ const NO_DOTS = [] // 결과가 없을 때도 같은 배열을 넘겨 점을 다
 // 탐색 애니메이션: 프레임마다 보여줄 방문 노드 수 (60fps에서 초당 약 300개)
 // 알고리즘과 상관없이 같은 속도라야 A*가 Dijkstra보다 빨리 끝나는 것이 보인다
 const STEP = 5
+// 재생 중 방금 방문한 점을 탐색 경계로 강조할 개수 (약 6프레임 = 0.1초 분량)
+const DOT_HEAD = STEP * 6
 
 // 서버 algorithm 값 → 화면 이름, 고른 알고리즘 아래에 보여줄 한 줄 설명
 const ALGORITHMS = [
@@ -212,6 +214,7 @@ function AlgorithmLabPage() {
         rects={LAB_RECTS}
         dots={dots}
         dotCount={shownCount}
+        dotHead={DOT_HEAD}
         routes={routes}
         markers={markers}
         selectedId="search"
