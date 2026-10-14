@@ -25,11 +25,94 @@ const ALGORITHM_LABEL = Object.fromEntries(ALGORITHMS.map((a) => [a.id, a.label]
 const ALGORITHM_DESCRIPTION = Object.fromEntries(ALGORITHMS.map((a) => [a.id, a.description]))
 const COMPARE_SIDES = ['왼쪽 지도', '오른쪽 지도']
 
-// 방문 노드 count개를 다 보여주는 데 걸리는 재생 길이 (×1 속도, 60fps 기준)
+// 방문 노드 count개를 다 보여주는 데 걸리는 재생 프레임 수 (×1 속도, 60fps 기준)
 // 실제로 걸린 시간은 속도·화면 주사율에 따라 달라지므로, 알고리즘끼리 같은 단위로 비교하려고 개수에서 계산한다
+function playFrames(count) {
+  return Math.ceil(count / STEP)
+}
+
+function playSeconds(frames) {
+  return `${(frames / 60).toFixed(1)}초`
+}
+
 function playLength(count) {
-  const frames = Math.ceil(count / STEP)
-  return `${frames.toLocaleString()}프레임 (약 ${(frames / 60).toFixed(1)}초)`
+  const frames = playFrames(count)
+  return `${frames.toLocaleString()}프레임 (약 ${playSeconds(frames)})`
+}
+
+// 비교 표의 줄: value(result)는 비교할 숫자 (없으면 null), format은 표에 보일 글자
+// 모든 줄은 값이 작을수록 굵게 표시한다 (방문 노드·거리·시간은 작을수록 좋고, 경로 노드는 BFS가 작다)
+const COMPARE_ROWS = [
+  { label: '방문 노드', value: (r) => r.visited_order.length, format: (n) => `${n.toLocaleString()}개` },
+  // 거리는 m 단위로 반올림해 비교한다 (부동소수 차이로 같은 경로가 다르게 보이지 않게)
+  { label: '경로 거리', value: (r) => (r.cost === null ? null : Math.round(r.cost)), format: (n) => `${n.toLocaleString()}m` },
+  { label: '경로 노드', value: (r) => (r.cost === null ? null : r.path.length), format: (n) => `${n.toLocaleString()}개` },
+  { label: '탐색 시간', value: (r) => r.elapsed_ms, format: (n) => `${n.toFixed(2)}ms` },
+  // 재생 시간만 그 지도의 재생이 끝난 뒤에 채운다 (afterPlay)
+  { label: '재생 시간', value: (r) => playFrames(r.visited_order.length), format: playSeconds, afterPlay: true },
+]
+
+// 비교 모드 결과 표: [왼쪽, 오른쪽] 결과를 항목마다 나란히 놓고 더 작은 값을 굵게 표시한다
+// 숫자는 서버 응답 그대로라 재생 중에도 보여준다
+function CompareTable({ results, shown }) {
+  const [left, right] = results
+  const leftVisited = left.visited_order.length
+  const rightVisited = right.visited_order.length
+  // 방문 노드가 적은 쪽이 많은 쪽의 몇 %만 탐색했는지
+  const [fewer, more] = leftVisited <= rightVisited ? [left, right] : [right, left]
+  const percent = Math.round((fewer.visited_order.length / more.visited_order.length) * 100)
+
+  return (
+    <>
+      <table className="compare-table">
+        <thead>
+          <tr>
+            <th />
+            {results.map((r, side) => (
+              <th key={side}>{ALGORITHM_LABEL[r.algorithm]}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {COMPARE_ROWS.map((row) => {
+            const values = results.map((r) =>
+              row.afterPlay && shown < r.visited_order.length ? undefined : row.value(r),
+            )
+            const bothKnown = values.every((v) => v !== null && v !== undefined)
+            const same = bothKnown && values[0] === values[1]
+            const best = bothKnown && !same ? Math.min(...values) : null
+            return (
+              <tr key={row.label}>
+                <th>
+                  {row.label}
+                  {/* 값이 같으면 굵게 하지 않고 "같음"을 붙인다 (예: Dijkstra/A*는 둘 다 최단 경로라 거리가 같다) */}
+                  {same && <span className="compare-same">같음</span>}
+                </th>
+                {values.map((v, side) => (
+                  <td key={side}>
+                    {v === undefined ? (
+                      <span className="compare-pending">재생 중</span>
+                    ) : v === null ? (
+                      '경로 없음'
+                    ) : v === best ? (
+                      <strong>{row.format(v)}</strong>
+                    ) : (
+                      row.format(v)
+                    )}
+                  </td>
+                ))}
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+      <p className="compare-summary">
+        {leftVisited === rightVisited
+          ? '두 알고리즘의 방문 노드 수가 같습니다.'
+          : `${ALGORITHM_LABEL[fewer.algorithm]}는 ${ALGORITHM_LABEL[more.algorithm]} 방문 노드의 ${percent}%만 탐색했습니다.`}
+      </p>
+    </>
+  )
 }
 
 // 지도 한 장: 결과 하나의 방문 노드를 앞에서부터 shown개 보여주고, 자기 결과가 다 나오면 경로를 그린다
@@ -309,6 +392,7 @@ function AlgorithmLabPage() {
                 </label>
               ))}
             </div>
+            {compare && <CompareTable results={results} shown={shown} />}
             {/* 경로를 못 찾았다는 것은 재생이 끝나야 알려준다. 숫자 요약은 서버 응답 그대로라 재생 중에도 보여준다 */}
             {single &&
               (single.cost === null ? (
