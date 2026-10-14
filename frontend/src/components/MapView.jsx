@@ -28,6 +28,20 @@ const DOT_FIRST_RGB = [0xff, 0xd4, 0x00]
 const DOT_LAST_RGB = [0xe0, 0x30, 0x1e]
 // 방금 방문한 점(탐색 경계): 크고 진한 다른 색으로 지금 탐색 중인 곳을 보여준다. 경로는 재생이 끝난 뒤에 그려지므로 같은 색이어도 겹치지 않는다
 const DOT_HEAD_STYLE = { radius: 9, fillColor: '#aa3bff', fillOpacity: 0.95 }
+// 탐색 트리: 방문한 노드와 그 노드에 처음 도착할 때 거쳐 온 노드를 잇는 가는 선 (색은 그 노드의 점과 같다)
+// 점만으로는 "어디서 왔는지"가 안 보인다. 선으로 이으면 출발지에서 가지가 자라는 모양이 된다
+const TREE_STYLE = { strokeWeight: 2, strokeOpacity: 0.85, zIndex: 1 }
+// 프런티어(후보): 발견했지만 아직 확정하지 않은 노드 = 큐/스택에 들어 있는 노드. 속이 빈 청록 고리로 방문 점과 구분한다
+// (App.css의 .lab-legend 색과 맞춘다)
+const FRONTIER_STYLE = {
+  radius: 7,
+  strokeWeight: 2,
+  strokeColor: '#00838f',
+  strokeOpacity: 0.95,
+  fillColor: '#00838f',
+  fillOpacity: 0.12,
+  zIndex: 1,
+}
 
 // i번째 방문 노드의 보통 스타일 (전체 total개 중 순서에 따라 색을 섞는다)
 function dotStyle(i, total) {
@@ -60,6 +74,9 @@ const PICK_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(PICK_CURSOR_SV
 // dots: [[lat, lng], ...] 탐색 중 방문한 노드 표시용 작은 원 (지도 범위 맞추기에는 넣지 않는다)
 // dotCount: dots 중 앞에서부터 몇 개를 보여줄지 (기본값 전부, 탐색 애니메이션용)
 // dotHead: 재생 중 마지막으로 보인 몇 개를 탐색 경계로 강조할지 (기본값 0 = 강조 없음, 전부 보이면 강조하지 않는다)
+// dotParents: [부모 번호 | null, ...] dots[i]를 dots[부모 번호]와 선으로 잇는다 (탐색 트리, 기본값 null = 선 없음)
+// frontier: [[lat, lng, 발견 단계, 방문 단계 | null], ...] 후보 노드 고리. "단계" = dots 번호
+//           dotCount = k일 때 발견 단계 < k ≤ 방문 단계인 노드만 보인다 (기본값 null = 표시 없음)
 // fitRoutes: 경로가 생기면 경로와 핀에 맞춰 지도 범위를 옮길지 (기본값 true, 실험실은 영역 전체 화면을 유지하려고 끈다)
 // selectedId: 강조할 경로 id
 // onMapClick: ({ lat, lng }) => void, 넘기면 지도 클릭으로 지점을 고를 수 있다
@@ -74,13 +91,19 @@ function MapView({
   dots = [],
   dotCount = Infinity,
   dotHead = 0,
+  dotParents = null,
+  frontier = null,
   fitRoutes = true,
 }) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
   const polylinesRef = useRef(new Map()) // 경로 id → Polyline (선택 변경 시 다시 그리지 않고 스타일만 바꾼다)
   // 만들어 둔 방문 노드 원 + 그중 지도에 올린 개수 (앞에서부터) + 강조 중인 경계의 시작 번호 (headStart ~ shown - 1)
-  const dotsRef = useRef({ circles: [], shown: 0, headStart: 0 })
+  // lines: 탐색 트리 선 (circles와 같은 번호, 처음 보일 때 만든다)
+  const dotsRef = useRef({ circles: [], lines: [], shown: 0, headStart: 0 })
+  // 후보 고리: items = frontier, circles = 처음 보일 때 만든 고리, byStep[k] = dotCount가 k가 될 때 보이거나 사라지는 번호들
+  // at = 지금 반영된 dotCount (byStep 범위로 줄인 값)
+  const frontierRef = useRef({ items: [], circles: [], byStep: [], at: 0 })
   const [ready, setReady] = useState(false)
   const [error, setError] = useState(null)
 
@@ -190,13 +213,17 @@ function MapView({
       ([lat, lng], i) =>
         new kakao.maps.Circle({ center: new kakao.maps.LatLng(lat, lng), ...dotStyle(i, dots.length) }),
     )
-    dotsRef.current = { circles, shown: 0, headStart: 0 }
+    // 트리 선은 수천 개라 미리 만들지 않고 처음 보일 때 만든다 (아래 effect의 lineAt)
+    const lines = []
+    dotsRef.current = { circles, lines, shown: 0, headStart: 0 }
 
     return () => {
       circles.forEach((c) => c.setMap(null))
-      dotsRef.current = { circles: [], shown: 0, headStart: 0 }
+      lines.forEach((l) => l?.setMap(null))
+      dotsRef.current = { circles: [], lines: [], shown: 0, headStart: 0 }
     }
-  }, [ready, dots])
+    // dotParents가 바뀌면(트리 표시를 켜고 끄면) 선을 처음부터 다시 만든다
+  }, [ready, dots, dotParents])
 
   // 앞에서부터 dotCount개만 지도에 올린다. 재생 중에는 프레임마다 바뀌므로 지금 보이는 개수와의 차이만 켜고 끈다
   // 경계 강조도 바뀐 원만 스타일을 바꾼다 (프레임마다 수십 개)
@@ -204,14 +231,32 @@ function MapView({
   useEffect(() => {
     const map = mapRef.current
     if (!ready || !map) return
+    const { kakao } = window
     const state = dotsRef.current
-    const { circles } = state
+    const { circles, lines } = state
     const target = Math.min(dotCount, circles.length)
     // 경계: 아직 다 보이지 않았을 때(재생 중) 마지막 dotHead개. 전부 보이면 비어 있다 (headStart = target)
     const headStart = target < circles.length ? Math.max(0, target - dotHead) : target
 
-    for (let i = state.shown; i < target; i++) circles[i].setMap(map)
-    for (let i = target; i < state.shown; i++) circles[i].setMap(null)
+    // i번 점과 부모 점을 잇는 트리 선. 출발 노드나 트리 표시를 끈 경우에는 없다
+    const lineAt = (i) => {
+      const p = dotParents?.[i]
+      if (p === null || p === undefined) return null
+      if (!lines[i]) {
+        const path = [dots[p], dots[i]].map(([lat, lng]) => new kakao.maps.LatLng(lat, lng))
+        lines[i] = new kakao.maps.Polyline({ path, ...TREE_STYLE, strokeColor: dotStyle(i, dots.length).fillColor })
+      }
+      return lines[i]
+    }
+
+    for (let i = state.shown; i < target; i++) {
+      circles[i].setMap(map)
+      lineAt(i)?.setMap(map)
+    }
+    for (let i = target; i < state.shown; i++) {
+      circles[i].setMap(null)
+      lines[i]?.setMap(null)
+    }
 
     // 이전 경계에서 빠진 원은 보통 스타일로, 새 경계에 들어온 원은 강조 스타일로
     for (let i = state.headStart; i < state.shown; i++) {
@@ -223,7 +268,55 @@ function MapView({
 
     state.shown = target
     state.headStart = headStart
-  }, [ready, dots, dotCount, dotHead])
+  }, [ready, dots, dotParents, dotCount, dotHead])
+
+  // 후보(프런티어) 고리: frontier가 바뀌면 단계별 목록만 만들어 두고, 고리는 처음 보일 때 만든다
+  // j번 후보는 dotCount가 (발견 단계 + 1)이 되면 나타나고 (방문 단계 + 1)이 되면 사라진다 (그때 방문 점이 찍힌다)
+  useEffect(() => {
+    if (!ready) return
+    const items = frontier ?? []
+    const byStep = []
+    const addAt = (k, j) => (byStep[k] ??= []).push(j)
+    items.forEach(([, , found, visited], j) => {
+      addAt(found + 1, j)
+      if (visited !== null) addAt(visited + 1, j)
+    })
+    const circles = []
+    frontierRef.current = { items, circles, byStep, at: 0 }
+
+    return () => {
+      circles.forEach((c) => c?.setMap(null))
+      frontierRef.current = { items: [], circles: [], byStep: [], at: 0 }
+    }
+  }, [ready, frontier])
+
+  // dotCount가 바뀌면 그 사이 단계에 나타나거나 사라지는 후보만 다시 판단한다 (앞으로 가든 0으로 되감든 같다)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!ready || !map) return
+    const { kakao } = window
+    const state = frontierRef.current
+    const { items, circles, byStep } = state
+    // 마지막 단계보다 크면 결과가 같으므로 줄인다 (dotCount 기본값 Infinity = 끝난 상태)
+    const k = Math.min(dotCount, byStep.length)
+    const visible = (j) => items[j][2] < k && (items[j][3] === null || k <= items[j][3])
+
+    const [from, to] = state.at < k ? [state.at, k] : [k, state.at]
+    for (let step = from + 1; step <= to; step++) {
+      for (const j of byStep[step] ?? []) {
+        if (visible(j)) {
+          circles[j] ??= new kakao.maps.Circle({
+            center: new kakao.maps.LatLng(items[j][0], items[j][1]),
+            ...FRONTIER_STYLE,
+          })
+          circles[j].setMap(map)
+        } else {
+          circles[j]?.setMap(null)
+        }
+      }
+    }
+    state.at = k
+  }, [ready, frontier, dotCount])
 
   // onMapClick이 있을 때만 지도 클릭을 받는다 (지점 선택 모드). 커서도 눈에 띄는 십자 모양으로 바꾼다
   useEffect(() => {

@@ -115,12 +115,24 @@ function CompareTable({ results, shown }) {
   )
 }
 
+// 방문 노드 shown개까지 보였을 때 후보(프런티어)에 있는 노드 수 = 큐/스택에 들어 있는 노드 수
+// 발견 단계 < shown ≤ 방문 단계 (끝까지 방문하지 않은 후보는 방문 단계가 null)
+function frontierSize(result, shown) {
+  let count = 0
+  for (const [, , found, visited] of result.frontier) {
+    if (found < shown && (visited === null || shown <= visited)) count++
+  }
+  return count
+}
+
 // 지도 한 장: 결과 하나의 방문 노드를 앞에서부터 shown개 보여주고, 자기 결과가 다 나오면 경로를 그린다
 // 비교 모드에서는 두 장이 같은 shown을 받으므로 같은 속도로 재생되고, 방문 노드가 적은 쪽이 먼저 끝난다
 // label: 지도 위에 띄울 알고리즘 이름 (단일 모드는 사이드바에 결과가 있으므로 넘기지 않는다)
-function LabMap({ label = null, result, shown, dotHead, level, markers, onMapClick }) {
+// showTree / showFrontier: 탐색 트리 선, 후보(프런티어) 고리를 그릴지 (사이드바 "표시"에서 켜고 끈다)
+function LabMap({ label = null, result, shown, dotHead, showTree, showFrontier, level, markers, onMapClick }) {
   const total = result ? result.visited_order.length : 0
   const done = result !== null && shown >= total
+  const candidates = result ? frontierSize(result, shown) : 0
 
   // 경로 선: 이 지도의 재생이 끝난 뒤, 점이 2개 이상일 때만 그린다 (경로 없음 = 빈 목록, 출발 = 도착 = 점 1개)
   const routes = useMemo(
@@ -137,6 +149,8 @@ function LabMap({ label = null, result, shown, dotHead, level, markers, onMapCli
         dots={result ? result.visited_order : NO_DOTS}
         dotCount={shown}
         dotHead={dotHead}
+        dotParents={showTree && result ? result.visited_parent : null}
+        frontier={showFrontier && result ? result.frontier : null}
         // 탐색 범위(점)가 경로보다 넓으므로 경로에 맞춰 확대하지 않고 영역 전체 화면을 그대로 둔다
         fitRoutes={false}
         routes={routes}
@@ -150,7 +164,7 @@ function LabMap({ label = null, result, shown, dotHead, level, markers, onMapCli
           {result &&
             (done
               ? ` · ✅ 완료 · 방문 ${total.toLocaleString()}개 · ${playLength(total)}${result.cost === null ? ' · 경로 없음' : ''}`
-              : ` · 방문 ${shown.toLocaleString()} / ${total.toLocaleString()}개`)}
+              : ` · 방문 ${shown.toLocaleString()} / ${total.toLocaleString()}개 · 후보 ${candidates.toLocaleString()}개`)}
         </div>
       )}
     </div>
@@ -174,6 +188,9 @@ function AlgorithmLabPage() {
   const [shownCount, setShownCount] = useState(0)
   const [paused, setPaused] = useState(false)
   const [speed, setSpeed] = useState(1) // SPEEDS 중 하나. 새로 실행하거나 다시 봐도 그대로 둔다
+  // 탐색 과정 표시: 탐색 트리 선, 후보(프런티어) 고리. 결과는 그대로 두고 그리기만 켜고 끈다
+  const [showTree, setShowTree] = useState(true)
+  const [showFrontier, setShowFrontier] = useState(true)
   const searchIdRef = useRef(0) // 실행 중에 출발/도착을 바꾸거나 다시 실행하면 이전 응답은 버린다
 
   // 출발/도착 핀. MapView는 markers가 바뀌면 다시 그리므로 좌표가 바뀔 때만 새 배열을 만든다
@@ -356,6 +373,34 @@ function AlgorithmLabPage() {
           </button>
           {error && <p className="error">{error}</p>}
         </section>
+        {/* 지도에 그리는 탐색 과정 표시 켜고 끄기 + 범례 (색은 MapView의 DOT/TREE/FRONTIER 스타일과 맞춘다) */}
+        <section className="panel">
+          <h2>표시</h2>
+          <ul className="lab-legend">
+            <li>
+              <span className="legend-dot" />
+              확정한 노드 <small>(노랑 → 빨강: 방문 순서)</small>
+            </li>
+            <li>
+              <span className="legend-head" />
+              방금 확정한 노드
+            </li>
+            <li>
+              <label>
+                <input type="checkbox" checked={showFrontier} onChange={(e) => setShowFrontier(e.target.checked)} />
+                <span className="legend-frontier" />
+                후보(프런티어) <small>발견했지만 아직 확정하지 않은 노드 (큐/스택)</small>
+              </label>
+            </li>
+            <li>
+              <label>
+                <input type="checkbox" checked={showTree} onChange={(e) => setShowTree(e.target.checked)} />
+                <span className="legend-tree" />
+                탐색 트리 <small>각 노드에 처음 도착할 때 거쳐 온 노드와 잇는 선</small>
+              </label>
+            </li>
+          </ul>
+        </section>
         {results && (
           <section className="panel">
             <h2>결과 · {results.map((r) => ALGORITHM_LABEL[r.algorithm]).join(' vs ')}</h2>
@@ -363,7 +408,9 @@ function AlgorithmLabPage() {
             {playing && (
               <p className="hint">
                 {paused ? '일시정지' : '탐색 중'}
-                {single && ` · 방문 ${shown.toLocaleString()} / ${total.toLocaleString()}개`}
+                {single &&
+                  ` · 방문 ${shown.toLocaleString()} / ${total.toLocaleString()}개` +
+                    ` · 후보 ${frontierSize(single, shown).toLocaleString()}개`}
               </p>
             )}
             {/* 재생 중에는 일시정지/재개와 끝까지 바로 보기, 끝난 뒤에는 같은 결과를 처음부터 다시 재생 */}
@@ -431,6 +478,8 @@ function AlgorithmLabPage() {
               result={results ? results[side] : null}
               shown={shown}
               dotHead={dotHead}
+              showTree={showTree}
+              showFrontier={showFrontier}
               level={LAB_COMPARE_LEVEL}
               markers={markers}
               onMapClick={handleMapClick}
@@ -443,6 +492,8 @@ function AlgorithmLabPage() {
           result={single}
           shown={shown}
           dotHead={dotHead}
+          showTree={showTree}
+          showFrontier={showFrontier}
           level={LAB_LEVEL}
           markers={markers}
           onMapClick={handleMapClick}

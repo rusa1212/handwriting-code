@@ -408,6 +408,74 @@
   }
 }
 
+/* 실험실 "표시" 범례: 색은 MapView.jsx의 DOT_*, TREE_STYLE, FRONTIER_STYLE과 맞춘다 */
+.lab-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  font-size: 14px;
+  list-style: none;
+
+  li,
+  label {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+
+  label {
+    cursor: pointer;
+  }
+
+  input {
+    accent-color: var(--accent);
+  }
+
+  small {
+    flex-basis: 100%;
+    padding-left: 22px; /* 체크박스·기호 아래로 맞춘다 */
+    font-size: 12px;
+    opacity: 0.75;
+  }
+
+  li > small {
+    flex-basis: auto;
+    padding-left: 0;
+  }
+}
+
+.legend-dot,
+.legend-head,
+.legend-frontier {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.legend-dot {
+  background: linear-gradient(90deg, #ffd400, #e0301e);
+}
+
+.legend-head {
+  background: #aa3bff;
+}
+
+.legend-frontier {
+  background: rgb(0 131 143 / 0.12);
+  border: 2px solid #00838f;
+}
+
+.legend-tree {
+  display: inline-block;
+  width: 16px;
+  height: 2px;
+  background: #f08a10;
+}
+
 /* 지도 왼쪽 위: Dijkstra · 방문 820 / 1,200개 */
 .lab-map-status {
   position: absolute;

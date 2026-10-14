@@ -46,11 +46,17 @@ def run_search(start: LatLng, end: LatLng, algorithm: str) -> SearchResponse:
     result = ALGORITHMS[algorithm](graph, start_node, end_node)
     elapsed_ms = (time.perf_counter() - t0) * 1000
 
+    # 프런티어: 발견한 노드마다 [좌표, 발견한 단계, 방문한 단계]. 끝까지 방문하지 않은 후보는 방문 단계가 없다
+    step = {node: i for i, node in enumerate(result.visited_order)}
+    frontier = [(*graph.coords[n], found, step.get(n)) for n, found in result.discovered.items()]
+
     return SearchResponse(
         path=[graph.coords[n] for n in result.path],
         visited_order=[graph.coords[n] for n in result.visited_order],
         cost=None if math.isinf(result.cost) else result.cost,
         elapsed_ms=elapsed_ms,
+        visited_parent=result.visited_parent,
+        frontier=frontier,
     )
 
 
