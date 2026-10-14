@@ -233,7 +233,9 @@
 }
 
 /* 실험실 알고리즘 선택: ○ BFS  ○ DFS  ○ Dijkstra  ● A* */
-.algorithm-options {
+/* 재생 속도도 같은 모양: 속도 ○ ×0.5  ● ×1  ○ ×2  ○ ×4 */
+.algorithm-options,
+.speed-options {
   display: flex;
   flex-wrap: wrap;
   gap: 4px 16px;
@@ -252,11 +254,94 @@
   }
 }
 
+/* ☑ 비교 모드 */
+.compare-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0;
+  font-size: 15px;
+  cursor: pointer;
+
+  input {
+    accent-color: var(--accent);
+  }
+}
+
+/* 비교 모드에서 알고리즘 줄 위의 "왼쪽 지도" / "오른쪽 지도" */
+.compare-side {
+  margin: 12px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* 반대쪽 지도에서 고른 알고리즘은 흐리게 (같은 것끼리는 비교하지 않는다) */
+.algorithm-options label:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 .algorithm-description {
   margin: 0 0 8px;
   font-size: 13px;
   line-height: 1.5;
   word-break: keep-all; /* 한글 단어 중간에서 줄이 바뀌지 않게 */
+}
+
+/* 비교 모드 결과 표:          Dijkstra   A*
+                     방문 노드   1,200개   580개 */
+.compare-table {
+  width: 100%;
+  margin-top: 12px;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums; /* 자릿수가 세로로 맞게 */
+  border-collapse: collapse;
+
+  th,
+  td {
+    padding: 6px 4px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  thead th {
+    font-weight: 600;
+    text-align: right;
+  }
+
+  tbody th {
+    font-weight: normal;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  td {
+    text-align: right;
+  }
+
+  strong {
+    color: var(--accent);
+  }
+}
+
+.compare-same {
+  margin-left: 6px;
+  padding: 0 6px;
+  font-size: 12px;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+}
+
+.compare-pending {
+  font-size: 12px;
+  opacity: 0.6;
+}
+
+.compare-summary {
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  word-break: keep-all;
 }
 
 /* 경로 거리   1,305m */
@@ -303,6 +388,108 @@
 .map {
   position: absolute;
   inset: 0;
+}
+
+/* 실험실 지도: 단일 모드는 한 장, 비교 모드는 .lab-maps 안에 두 장을 나란히 */
+.lab-maps {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.lab-map {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+
+  & + & {
+    border-left: 2px solid var(--border);
+  }
+}
+
+/* 실험실 "표시" 범례: 색은 MapView.jsx의 DOT_*, TREE_STYLE, FRONTIER_STYLE과 맞춘다 */
+.lab-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  font-size: 14px;
+  list-style: none;
+
+  li,
+  label {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+
+  label {
+    cursor: pointer;
+  }
+
+  input {
+    accent-color: var(--accent);
+  }
+
+  small {
+    flex-basis: 100%;
+    padding-left: 22px; /* 체크박스·기호 아래로 맞춘다 */
+    font-size: 12px;
+    opacity: 0.75;
+  }
+
+  li > small {
+    flex-basis: auto;
+    padding-left: 0;
+  }
+}
+
+.legend-dot,
+.legend-head,
+.legend-frontier {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.legend-dot {
+  background: linear-gradient(90deg, #ffd400, #e0301e);
+}
+
+.legend-head {
+  background: #aa3bff;
+}
+
+.legend-frontier {
+  background: rgb(0 131 143 / 0.12);
+  border: 2px solid #00838f;
+}
+
+.legend-tree {
+  display: inline-block;
+  width: 16px;
+  height: 2px;
+  background: #f08a10;
+}
+
+/* 지도 왼쪽 위: Dijkstra · 방문 820 / 1,200개 */
+.lab-map-status {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 10; /* 카카오 지도 타일 위에 */
+  padding: 6px 12px;
+  font-size: 14px;
+  color: #222;
+  white-space: nowrap;
+  pointer-events: none; /* 지도 클릭을 가리지 않게 */
+  background: rgb(255 255 255 / 0.92);
+  border: 1px solid #999;
+  border-radius: 8px;
 }
 
 .route-list {

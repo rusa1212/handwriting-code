@@ -5,5 +5,7 @@ export const KOREA_LEVEL = 13
 // 알고리즘 실험실: 광주 전남대 주변 2km × 2km 도로망 그래프 (be/data/gwangju_roads.json)
 export const LAB_CENTER = { lat: 35.1769, lng: 126.9069 } // 전남대 용봉캠퍼스
 export const LAB_LEVEL = 5 // 실험 영역이 한 화면에 들어오는 확대 수준
+// 비교 모드: 지도 하나의 폭이 절반이라 한 단계 축소해야 영역 가로 2km가 들어온다
+export const LAB_COMPARE_LEVEL = LAB_LEVEL + 1
 // gwangju_roads.json의 bbox: 클릭할 수 있는 영역을 지도에 안내할 때 쓴다 (실제 판단은 서버의 500m 규칙)
 export const LAB_BOUNDS = { south: 35.16791, west: 126.8959, north: 35.18589, east: 126.9179 }

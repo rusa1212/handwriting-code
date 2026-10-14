@@ -6,6 +6,11 @@ BFS → DFS → Dijkstra → A* 를 직접 구현한다
     path          출발 → 도착 노드 id 목록. 경로가 없으면 []
     visited_order 방문한(확정한) 노드 id를 순서대로. 탐색 애니메이션에 쓴다
     cost          path의 실제 도로 거리 합(m). 경로가 없으면 math.inf
+
+탐색 과정 애니메이션(프런티어 + 탐색 트리)용으로 두 가지를 더 돌려준다. "단계" = visited_order 번호
+    visited_parent visited_order[i]에 처음 도착할 때 거쳐 온 노드의 단계 (출발은 None)
+    discovered     노드 → 처음 큐/스택에 넣은 단계 (그 단계에서 방문한 노드의 이웃으로 발견했다)
+                   발견한 단계 < 방문한 단계 사이에는 "아직 확정하지 않은 후보" = 프런티어에 있다
 """
 
 import heapq
@@ -23,6 +28,8 @@ class SearchResult(NamedTuple):
     path: list[NodeId]
     visited_order: list[NodeId]
     cost: float
+    visited_parent: list[int | None]
+    discovered: dict[NodeId, int]
 
 
 def reconstruct_path(parent: dict[NodeId, NodeId | None], start: NodeId, end: NodeId) -> list[NodeId]:
@@ -62,10 +69,17 @@ def path_cost(graph: Graph, path: list[NodeId]) -> float:
 
 
 def make_result(graph: Graph, parent: dict[NodeId, NodeId | None], visited_order: list[NodeId],
-                start: NodeId, end: NodeId) -> SearchResult:
-    """탐색이 끝난 뒤 parent와 방문 순서로 공통 결과를 만든다"""
+                start: NodeId, end: NodeId, discovered: dict[NodeId, int] | None = None) -> SearchResult:
+    """탐색이 끝난 뒤 parent와 방문 순서로 공통 결과를 만든다
+
+    탐색 트리: 방문한 노드마다 parent가 몇 번째 단계였는지 적는다
+    네 알고리즘 모두 방문(확정)한 노드의 parent는 그 뒤로 바뀌지 않고, parent는 언제나 먼저 방문돼 있다
+    (BFS: 발견할 때 정하고 끝, DFS: 방문할 때 정한다, Dijkstra/A*: 확정한 노드는 다시 고치지 않는다)
+    """
     path = reconstruct_path(parent, start, end)
-    return SearchResult(path, visited_order, path_cost(graph, path))
+    step = {node: i for i, node in enumerate(visited_order)}
+    visited_parent = [None if parent[u] is None else step[parent[u]] for u in visited_order]
+    return SearchResult(path, visited_order, path_cost(graph, path), visited_parent, discovered or {})
 
 
 def bfs(graph: Graph, start: NodeId, end: NodeId) -> SearchResult:
@@ -75,10 +89,12 @@ def bfs(graph: Graph, start: NodeId, end: NodeId) -> SearchResult:
     visited_order = 큐에서 꺼낸 순서. 도착 노드를 꺼내면 멈춘다 (Dijkstra의 "확정"과 같은 시점)
     """
     parent: dict[NodeId, NodeId | None] = {start: None}  # 큐에 넣은(발견한) 노드는 여기에 있다
+    discovered: dict[NodeId, int] = {}
     queue = deque([start])
     visited_order = []
     while queue:
         u = queue.popleft()
+        step = len(visited_order)
         visited_order.append(u)
         if u == end:
             break
@@ -86,8 +102,9 @@ def bfs(graph: Graph, start: NodeId, end: NodeId) -> SearchResult:
             # 처음 발견했을 때 parent를 정한다. 먼저 발견한 쪽이 간선 수가 적은 길이다
             if v not in parent:
                 parent[v] = u
+                discovered[v] = step
                 queue.append(v)
-    return make_result(graph, parent, visited_order, start, end)
+    return make_result(graph, parent, visited_order, start, end, discovered)
 
 
 def dfs(graph: Graph, start: NodeId, end: NodeId) -> SearchResult:
@@ -98,6 +115,7 @@ def dfs(graph: Graph, start: NodeId, end: NodeId) -> SearchResult:
     visited_order = 스택에서 꺼내 처음 방문한 순서. 도착 노드를 방문하면 멈춘다
     """
     parent: dict[NodeId, NodeId | None] = {}  # 방문한 노드만 여기에 있다
+    discovered: dict[NodeId, int] = {}
     stack: list[tuple[NodeId, NodeId | None]] = [(start, None)]  # (노드, 거쳐 온 노드)
     visited_order = []
     while stack:
@@ -106,6 +124,7 @@ def dfs(graph: Graph, start: NodeId, end: NodeId) -> SearchResult:
         if u in parent:
             continue
         parent[u] = came_from
+        step = len(visited_order)
         visited_order.append(u)
         if u == end:
             break
@@ -113,7 +132,8 @@ def dfs(graph: Graph, start: NodeId, end: NodeId) -> SearchResult:
         for v, _ in reversed(graph.neighbors(u)):
             if v not in parent:
                 stack.append((v, u))
-    return make_result(graph, parent, visited_order, start, end)
+                discovered.setdefault(v, step)  # 여러 번 넣어도 처음 넣은 단계만 남긴다
+    return make_result(graph, parent, visited_order, start, end, discovered)
 
 
 def dijkstra(graph: Graph, start: NodeId, end: NodeId) -> SearchResult:
@@ -126,6 +146,7 @@ def dijkstra(graph: Graph, start: NodeId, end: NodeId) -> SearchResult:
     dist: dict[NodeId, float] = {start: 0}  # 지금까지 찾은 가장 짧은 거리 (아직 확정 전일 수 있다)
     parent: dict[NodeId, NodeId | None] = {start: None}
     done: set[NodeId] = set()
+    discovered: dict[NodeId, int] = {}
     heap: list[tuple[float, NodeId]] = [(0, start)]
     visited_order = []
     while heap:
@@ -134,16 +155,19 @@ def dijkstra(graph: Graph, start: NodeId, end: NodeId) -> SearchResult:
         if u in done:
             continue
         done.add(u)
+        step = len(visited_order)
         visited_order.append(u)
         if u == end:
             break
         for v, w in graph.neighbors(u):
             new_dist = d + w
             if v not in done and new_dist < dist.get(v, math.inf):
+                if v not in dist:  # 처음 발견 (이후에 거리가 줄어도 프런티어에 들어온 단계는 그대로)
+                    discovered[v] = step
                 dist[v] = new_dist
                 parent[v] = u
                 heapq.heappush(heap, (new_dist, v))
-    return make_result(graph, parent, visited_order, start, end)
+    return make_result(graph, parent, visited_order, start, end, discovered)
 
 
 def astar(graph: Graph, start: NodeId, end: NodeId) -> SearchResult:
@@ -157,6 +181,7 @@ def astar(graph: Graph, start: NodeId, end: NodeId) -> SearchResult:
     g: dict[NodeId, float] = {start: 0}
     parent: dict[NodeId, NodeId | None] = {start: None}
     done: set[NodeId] = set()
+    discovered: dict[NodeId, int] = {}
     heap: list[tuple[float, NodeId]] = [(graph.distance(start, end), start)]
     visited_order = []
     while heap:
@@ -166,16 +191,19 @@ def astar(graph: Graph, start: NodeId, end: NodeId) -> SearchResult:
         if u in done:
             continue
         done.add(u)
+        step = len(visited_order)
         visited_order.append(u)
         if u == end:
             break
         for v, w in graph.neighbors(u):
             new_g = g[u] + w
             if v not in done and new_g < g.get(v, math.inf):
+                if v not in g:  # 처음 발견 (다익스트라와 같다)
+                    discovered[v] = step
                 g[v] = new_g
                 parent[v] = u
                 heapq.heappush(heap, (new_g + graph.distance(v, end), v))
-    return make_result(graph, parent, visited_order, start, end)
+    return make_result(graph, parent, visited_order, start, end, discovered)
 
 
 ALGORITHMS = {
@@ -255,6 +283,26 @@ def _check_algorithms() -> None:
         print(f"    {start} → {end}: {d}개 vs {a}개  {'OK' if a <= d else 'A*가 더 많이 방문함!'}")
 
 
+def _check_trace(result: SearchResult) -> str | None:
+    """애니메이션용 탐색 기록이 앞뒤가 맞는지. 문제가 있으면 설명, 없으면 None
+
+    - 탐색 트리: 출발만 parent가 없고, 나머지는 자기보다 먼저 방문한 노드에서 왔다
+    - 프런티어: 출발이 아닌 방문 노드는 모두 발견된 적이 있고, 발견한 단계 < 방문한 단계
+    """
+    visited = result.visited_order
+    if result.visited_parent[0] is not None:
+        return "출발 노드에 parent가 있음"
+    for i, p in enumerate(result.visited_parent[1:], start=1):
+        if p is None or not 0 <= p < i:
+            return f"{i}단계 노드의 parent 단계 {p}가 앞 단계가 아님"
+    for i, node in enumerate(visited[1:], start=1):
+        if node not in result.discovered or not result.discovered[node] < i:
+            return f"{i}단계 노드를 그 전에 발견한 기록이 없음"
+    if visited[0] in result.discovered:
+        return "출발 노드가 발견 기록에 있음"
+    return None
+
+
 def _check_osm(pairs: int = 200, seed: int = 0) -> None:
     """2-6 확인: 광주(전남대) OSM 그래프에서 무작위 출발/도착 쌍으로 네 알고리즘을 비교한다
 
@@ -290,6 +338,10 @@ def _check_osm(pairs: int = 200, seed: int = 0) -> None:
         for name in ("bfs", "dfs"):
             if results[name].cost < best - 1e-6:
                 problems.append((start, end, f"{name} 비용이 다익스트라보다 짧음"))
+        for name, r in results.items():
+            problem = _check_trace(r)
+            if problem:
+                problems.append((start, end, f"{name} 탐색 기록: {problem}"))
 
     print(f"  노드 {g.node_count()}개, 무작위 {pairs}쌍 (seed={seed})")
     print(f"  {'알고리즘':<8} {'평균 비용':>10} {'평균 방문':>9} {'평균 시간':>9}")

@@ -78,3 +78,10 @@ class SearchResponse(BaseModel):
     # 경로가 없을 때 inf는 JSON으로 보낼 수 없으므로 None(null)으로 보낸다
     cost: float | None = Field(description="경로 거리 (m), 경로가 없으면 null")
     elapsed_ms: float = Field(description="탐색 함수 실행 시간 (ms)")
+    # 탐색 과정 애니메이션용. "단계" = visited_order 번호
+    visited_parent: list[int | None] = Field(
+        description="visited_order[i]에 처음 도착할 때 거쳐 온 노드의 단계 (출발은 null). 탐색 트리 선을 그린다"
+    )
+    frontier: list[tuple[float, float, int, int | None]] = Field(
+        description="발견한 노드 [lat, lng, 발견한 단계, 방문한 단계 또는 null]. 두 단계 사이에 후보(프런티어)로 보인다"
+    )
