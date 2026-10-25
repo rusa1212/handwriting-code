@@ -7,6 +7,7 @@
 import json
 import math
 from pathlib import Path
+from typing import NamedTuple
 
 # OSM 노드 id는 정수, 터미널 검증용 예제 그래프는 "A" 같은 문자열을 쓴다
 NodeId = int | str
@@ -28,6 +29,14 @@ def haversine(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
     return 2 * EARTH_RADIUS_M * math.asin(math.sqrt(a))
 
 
+class EdgeInfo(NamedTuple):
+    """간선이 어느 도로의 어떤 구간인지. 탐색 가중치와 따로 두고, 상황(공연·기상)에 따라 가중치를 다시 계산할 때 쓴다"""
+    length_m: float
+    speed_kmh: float
+    way_id: int
+    tags: dict
+
+
 def _reachable(start: NodeId, adj: dict[NodeId, list[NodeId]], skip: set[NodeId]) -> set[NodeId]:
     """start에서 간선을 따라 갈 수 있는 노드 전부 (skip에 든 노드는 지나가지 않는다)"""
     seen = {start}
@@ -45,18 +54,28 @@ class Graph:
     def __init__(self) -> None:
         self.coords: dict[NodeId, tuple[float, float]] = {}  # node_id → (lat, lng)
         self.adj: dict[NodeId, list[tuple[NodeId, float]]] = {}  # node_id → [(neighbor_id, weight)]
+        self.edge_info: dict[tuple[NodeId, NodeId], EdgeInfo] = {}  # (u, v) → 도로 정보 (OSM 그래프만)
 
     def add_node(self, node_id: NodeId, lat: float, lng: float) -> None:
         self.coords[node_id] = (lat, lng)
         self.adj.setdefault(node_id, [])
 
-    def add_edge(self, u: NodeId, v: NodeId, weight: float, oneway: bool = False) -> None:
-        """u → v 도로를 추가한다. 일방통행이 아니면 v → u도 같이 넣는다."""
+    def add_edge(
+        self, u: NodeId, v: NodeId, weight: float, oneway: bool = False, info: EdgeInfo | None = None
+    ) -> None:
+        """u → v 도로를 추가한다. 일방통행이 아니면 v → u도 같이 넣는다.
+
+        info: 도로 정보. 같은 (u, v)가 두 도로에 겹쳐 나오면 먼저 넣은 것을 남긴다
+        """
         if u not in self.coords or v not in self.coords:
             raise KeyError(f"없는 노드로 도로를 만들 수 없습니다: {u} → {v}")
         self.adj[u].append((v, weight))
         if not oneway:
             self.adj[v].append((u, weight))
+        if info is not None:
+            self.edge_info.setdefault((u, v), info)
+            if not oneway:
+                self.edge_info.setdefault((v, u), info)
 
     def neighbors(self, node_id: NodeId) -> list[tuple[NodeId, float]]:
         return self.adj[node_id]
@@ -82,6 +101,7 @@ class Graph:
         """node_ids에 든 노드만 남기고, 지운 노드로 이어지는 간선도 지운다"""
         self.coords = {n: c for n, c in self.coords.items() if n in node_ids}
         self.adj = {n: [(v, w) for v, w in edges if v in node_ids] for n, edges in self.adj.items() if n in node_ids}
+        self.edge_info = {(u, v): e for (u, v), e in self.edge_info.items() if u in node_ids and v in node_ids}
 
     def neighbor_lists(self) -> tuple[dict[NodeId, list[NodeId]], dict[NodeId, list[NodeId]]]:
         """가중치를 뺀 (정방향, 역방향) 이웃 목록. 역방향은 "이 노드로 들어오는 노드"다"""
@@ -220,16 +240,20 @@ def load_osm_graph(path: Path = OSM_PATH, keep_largest: bool = True) -> Graph:
     coords = {int(node_id): latlng for node_id, latlng in data["nodes"].items()}
 
     for way in data["ways"]:
-        direction = _direction(way["tags"])
+        tags = way["tags"]
+        direction = _direction(tags)
+        speed = road_speed(tags)
         for u, v in zip(way["nodes"], way["nodes"][1:]):
             for node_id in (u, v):
                 if node_id not in g.coords:
                     g.add_node(node_id, *coords[node_id])
+            # 탐색 가중치는 아직 거리(m). 시간 등 다른 가중치는 edge_info로 다시 계산한다
             weight = g.distance(u, v)
+            info = EdgeInfo(weight, speed, way["id"], tags)
             if direction == -1:
-                g.add_edge(v, u, weight, oneway=True)
+                g.add_edge(v, u, weight, oneway=True, info=info)
             else:
-                g.add_edge(u, v, weight, oneway=direction == 1)
+                g.add_edge(u, v, weight, oneway=direction == 1, info=info)
 
     if keep_largest:
         g.keep_only(g.largest_component())
@@ -272,6 +296,14 @@ def _print_osm() -> None:
 
     weights = [w for edges in g.adj.values() for _, w in edges]
     print(f"간선 길이: 최소 {min(weights):.1f}m, 평균 {sum(weights) / len(weights):.1f}m, 최대 {max(weights):.1f}m")
+
+    # 간선마다 도로 정보가 있어야 한다. 같은 (u, v)가 두 도로에 겹치면 adj에는 둘, edge_info에는 하나만 남는다
+    pairs = [(u, v) for u, edges in g.adj.items() for v, _ in edges]
+    duplicates = len(pairs) - len(set(pairs))
+    missing = sum(1 for pair in pairs if pair not in g.edge_info)
+    print(f"도로 정보: {len(g.edge_info)}개, 없는 간선 {missing}개, 두 도로에 겹친 간선 {duplicates}개")
+    bad_length = sum(1 for (u, v), e in g.edge_info.items() if abs(e.length_m - g.distance(u, v)) > 1e-6)
+    print(f"도로 정보 길이 ≠ 두 점 거리: {bad_length}개")
 
     # 나가는 길이 없는 노드: 영역 밖에서 잘린 도로 끝이나 일방통행 끝. 탐색이 여기서 멈춘다
     dead_ends = [n for n, edges in g.adj.items() if not edges]
