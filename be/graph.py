@@ -166,6 +166,45 @@ def _direction(tags: dict) -> int:
     return 0
 
 
+# maxspeed 태그가 없을 때 쓰는 도로 종류별 속도(km/h). 대부분의 도로(504개 중 479개)가 이 값을 쓴다
+DEFAULT_SPEED_KMH = {
+    "motorway": 100, "motorway_link": 100,
+    "trunk": 70, "trunk_link": 70,
+    "primary": 50, "primary_link": 50,
+    "secondary": 50, "secondary_link": 50,
+    "tertiary": 40, "tertiary_link": 40,
+    "unclassified": 30,
+    "residential": 30,
+    "living_street": 20,
+    "service": 20,
+}
+# 표에 없는 도로는 가장 느리게 본다 (모르는 길을 빠르다고 가정하지 않는다)
+FALLBACK_SPEED_KMH = min(DEFAULT_SPEED_KMH.values())
+MPH_TO_KMH = 1.609344
+
+
+def _parse_maxspeed(value: str | None) -> float | None:
+    """OSM maxspeed 문자열 → km/h. "60", "30 mph"처럼 읽을 수 있는 것만, 나머지("signals", "KR:urban" 등)는 None"""
+    if not value:
+        return None
+    parts = value.strip().split()
+    try:
+        speed = float(parts[0])
+    except ValueError:
+        return None
+    if len(parts) > 1 and parts[1].lower() == "mph":
+        speed *= MPH_TO_KMH
+    return speed if speed > 0 else None
+
+
+def road_speed(tags: dict) -> float:
+    """도로의 속도(km/h): maxspeed가 있으면 그 값, 없으면 highway 종류별 기본값"""
+    speed = _parse_maxspeed(tags.get("maxspeed"))
+    if speed is not None:
+        return speed
+    return DEFAULT_SPEED_KMH.get(tags.get("highway"), FALLBACK_SPEED_KMH)
+
+
 def load_osm_graph(path: Path = OSM_PATH, keep_largest: bool = True) -> Graph:
     """fetch_osm.py가 저장한 도로 JSON → Graph
 
@@ -246,8 +285,32 @@ def _print_osm() -> None:
     print(f"전남대(캠퍼스 중심)에서 가장 가까운 노드: {node_id} ({dist:.1f}m), 이웃 {len(g.neighbors(node_id))}개")
 
 
+def _print_speeds(path: Path = OSM_PATH) -> None:
+    """속도별 도로 수와 총 길이. 기본값(maxspeed 없음)에 얼마나 몰려 있는지 본다"""
+    assert road_speed({"maxspeed": "30 mph"}) == 30 * MPH_TO_KMH
+    assert road_speed({"maxspeed": "signals", "highway": "primary"}) == 50
+    assert road_speed({"highway": "footway"}) == FALLBACK_SPEED_KMH
+
+    data = json.loads(path.read_text(encoding="utf-8"))
+    coords = data["nodes"]
+    stats: dict[tuple[float, str], list[float]] = {}  # (속도, 출처) → [도로 수, 총 길이 m]
+    for way in data["ways"]:
+        tags = way["tags"]
+        source = "maxspeed" if _parse_maxspeed(tags.get("maxspeed")) is not None else "기본값"
+        length = sum(
+            haversine(*coords[str(u)], *coords[str(v)]) for u, v in zip(way["nodes"], way["nodes"][1:])
+        )
+        entry = stats.setdefault((road_speed(tags), source), [0, 0.0])
+        entry[0] += 1
+        entry[1] += length
+    for (speed, source), (count, length) in sorted(stats.items(), reverse=True):
+        print(f"  {speed:5.0f} km/h ({source}): 도로 {count:3d}개, {length / 1000:5.1f}km")
+
+
 if __name__ == "__main__":
     print("[예제 그래프 A~G]")
     _print_sample()
     print("\n[광주(전남대) OSM 그래프]")
     _print_osm()
+    print("\n[도로 속도]")
+    _print_speeds()
