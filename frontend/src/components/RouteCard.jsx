@@ -33,6 +33,16 @@ function RouteCard({ route, selected, score, best, onClick }) {
           {/* 통행료는 승객이 따로 내므로 있을 때만 합계를 보여 준다 */}
           {fare && route.toll > 0 && ` · 합계 ${formatWon(fare.total + route.toll)}`}
         </span>
+        {/* 이 경로를 돌려준 카카오 옵션: 추천 · 최단시간 · 최단거리 */}
+        {route.labels?.length > 0 && (
+          <span className="route-labels">
+            {route.labels.map((label) => (
+              <span key={label} className="route-label">
+                {label}
+              </span>
+            ))}
+          </span>
+        )}
       </button>
     </li>
   )

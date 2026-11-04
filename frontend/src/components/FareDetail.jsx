@@ -10,11 +10,12 @@ function surchargeLabel(fare) {
 
 // 선택한 택시 경로의 요금 내역 (백엔드 /api/taxi의 fare)
 // 기본 + 거리 + 시간 + 할증 = 예상 택시비, 여기에 통행료를 더하면 총 예상 비용
-function FareDetail({ route }) {
+// title: 패널 제목 (선택한 경로 이름은 뒤에 붙는다)
+function FareDetail({ route, title = '③ 요금 내역' }) {
   if (!route?.fare) {
     return (
       <section className="panel">
-        <h2>③ 요금 내역</h2>
+        <h2>{title}</h2>
         <p className="placeholder">출발지와 목적지를 고르면 예상 택시비를 계산합니다.</p>
       </section>
     )
@@ -30,7 +31,9 @@ function FareDetail({ route }) {
 
   return (
     <section className="panel">
-      <h2>③ 요금 내역 · {route.id}</h2>
+      <h2>
+        {title} · {route.id}
+      </h2>
       <table className="fare-table">
         <tbody>
           {rows.map(([label, won]) => (

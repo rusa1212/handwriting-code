@@ -1,8 +1,9 @@
 // 추천 결과의 이유 문장. result: { scores, best_id, reason } (백엔드 /api/recommend)
-function RecommendReason({ result, error }) {
+// title: 모드마다 패널 번호가 달라서 받는다
+function RecommendReason({ result, error, title = '④ 추천 이유' }) {
   return (
     <section className="panel">
-      <h2>④ 추천 이유</h2>
+      <h2>{title}</h2>
       {error ? (
         <p className="error">{error}</p>
       ) : result ? (
