@@ -9,10 +9,12 @@ python taxi_sample.py --refresh  API를 다시 불러 저장한 뒤 확인
 
 import json
 import sys
+from datetime import datetime
 from pathlib import Path
 
 from map_api import fetch_directions, parse_routes
 from schemas import Place
+from taxi import KST
 
 SAMPLE_FILE = Path(__file__).parent / "data" / "sample_directions.json"
 
@@ -25,15 +27,21 @@ SAMPLES = {
 }
 
 
-def load_samples(refresh: bool = False) -> dict[str, dict]:
-    """이름 → 길찾기 원본 응답. 파일이 없거나 refresh면 API를 불러 저장한다"""
-    if SAMPLE_FILE.exists() and not refresh:
-        return json.loads(SAMPLE_FILE.read_text(encoding="utf-8"))
+def load_samples(refresh: bool = False) -> tuple[datetime, dict[str, dict]]:
+    """(받은 시각, 이름 → 길찾기 원본 응답). 파일이 없거나 refresh면 API를 불러 저장한다
 
-    data = {name: fetch_directions(o, d) for name, (o, d) in SAMPLES.items()}
-    SAMPLE_FILE.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
-    print(f"저장: {SAMPLE_FILE.name} ({SAMPLE_FILE.stat().st_size / 1024:.0f}KB)\n")
-    return data
+    받은 시각을 같이 남기는 이유: 카카오 fare.taxi는 요청 시각의 심야할증이 들어간 값이다 (docs/taxi.md 2단계)
+    """
+    if SAMPLE_FILE.exists() and not refresh:
+        saved = json.loads(SAMPLE_FILE.read_text(encoding="utf-8"))
+        return datetime.fromisoformat(saved["fetched_at"]), saved["routes"]
+
+    fetched_at = datetime.now(KST).replace(microsecond=0)
+    routes = {name: fetch_directions(o, d) for name, (o, d) in SAMPLES.items()}
+    saved = {"fetched_at": fetched_at.isoformat(), "routes": routes}
+    SAMPLE_FILE.write_text(json.dumps(saved, ensure_ascii=False), encoding="utf-8")
+    print(f"저장: {SAMPLE_FILE.name} ({SAMPLE_FILE.stat().st_size / 1024:.0f}KB, {fetched_at:%Y-%m-%d %H:%M})\n")
+    return fetched_at, routes
 
 
 def check(name: str, raw: dict) -> None:
@@ -56,7 +64,8 @@ def check(name: str, raw: dict) -> None:
 
 
 if __name__ == "__main__":
-    samples = load_samples(refresh="--refresh" in sys.argv)
+    fetched_at, samples = load_samples(refresh="--refresh" in sys.argv)
+    print(f"받은 시각: {fetched_at:%Y-%m-%d %H:%M}")
     for name, raw in samples.items():
         check(name, raw)
     print("\n확인 완료")
