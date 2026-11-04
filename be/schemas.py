@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -45,6 +46,32 @@ class Route(RouteMetrics):
     kakao_taxi: int | None = Field(default=None, description="카카오 예상 택시비 (원). 직접 계산한 값의 검증용")
     # 서버 안에서 택시비 계산에만 쓰고 응답 JSON에는 넣지 않는다 (경로 하나에 수백 개라 크다)
     segments: list[Segment] | None = Field(default=None, exclude=True)
+
+
+# 택시 모드 (docs/taxi.md 5단계)
+
+
+class TaxiRequest(BaseModel):
+    origin: Place
+    destination: Place
+    # 심야할증을 정하는 출발 시각. 없으면 지금. 시간대가 없으면("2026-11-04T23:15") 한국 시간으로 본다
+    depart_at: datetime | None = None
+
+
+class TaxiFare(BaseModel):
+    """택시 요금 내역 (원). base + distance_fare + time_fare + surcharge = total"""
+
+    base: int = Field(description="기본요금")
+    distance_fare: int = Field(description="거리 요금")
+    time_fare: int = Field(description="시간 요금 (느린 구간)")
+    surcharge: int = Field(description="할증 금액 (100원 반올림 차이 포함)")
+    total: int = Field(description="예상 택시비 (통행료 제외)")
+    night_rate: float = Field(description="적용한 심야할증률 (0.2 = 20%)")
+    out_of_area_rate: float = Field(description="적용한 시계외 할증률")
+
+
+class TaxiRoute(Route):
+    fare: TaxiFare
 
 
 class Weights(BaseModel):

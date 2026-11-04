@@ -11,8 +11,11 @@ from schemas import (
     RoutesRequest,
     SearchRequest,
     SearchResponse,
+    TaxiRequest,
+    TaxiRoute,
 )
 from scoring import recommend
+from taxi import taxi_routes
 
 app = FastAPI()
 
@@ -56,6 +59,17 @@ def routes(req: RoutesRequest) -> list[Route]:
     except MapApiError as e:
         # 외부 API 쪽 문제이므로 502 (Bad Gateway)
         raise HTTPException(status_code=502, detail=str(e)) from e
+
+
+# 택시 모드: 경로마다 직접 계산한 예상 택시비를 붙여 돌려준다 (docs/taxi.md 5단계)
+# 요금표는 아직 서울 하나뿐이라 다른 지역도 서울 요금으로 계산한다
+@app.post("/api/taxi")
+def taxi(req: TaxiRequest) -> list[TaxiRoute]:
+    try:
+        routes = get_routes(req.origin, req.destination, with_segments=True)
+    except MapApiError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    return taxi_routes(routes, req.origin, req.destination, req.depart_at)
 
 
 # LEVEL 3: 받은 경로들에 사용자 가중치를 적용해 점수·추천 경로·이유를 돌려준다

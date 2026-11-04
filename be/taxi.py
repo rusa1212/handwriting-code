@@ -11,7 +11,7 @@
 from datetime import datetime, timedelta, timezone
 from typing import NamedTuple
 
-from schemas import Segment
+from schemas import Place, Route, Segment, TaxiFare, TaxiRoute
 
 # 한국 시간. 서머타임이 없어 고정 오프셋이면 충분하다
 # (zoneinfo의 "Asia/Seoul"은 Windows에서 tzdata 패키지가 없으면 동작하지 않는다)
@@ -166,6 +166,26 @@ def taxi_fare(
     return FareBreakdown(base, distance_fare, time_fare, surcharge, total, night, out_of_area)
 
 
+def taxi_routes(
+    routes: list[Route],
+    origin: Place,
+    destination: Place,
+    depart_at: datetime | None = None,
+    table: FareTable = TAXI_TABLES["seoul"],
+) -> list[TaxiRoute]:
+    """경로마다 택시 요금을 붙인다 (/api/taxi). routes는 get_routes(..., with_segments=True) 결과
+    할증률은 출발 시각·출발지·목적지로 정하므로 모든 경로에 같다"""
+    night = night_rate(depart_at or datetime.now(KST), table)
+    out = out_of_area_rate(origin, destination, table)
+    return [
+        TaxiRoute(
+            **route.model_dump(),  # segments는 exclude라 여기서 빠진다 → 응답에도 안 나간다
+            fare=TaxiFare(**taxi_fare(route.segments, table, night=night, out_of_area=out)._asdict()),
+        )
+        for route in routes
+    ]
+
+
 def _check_examples() -> None:
     """손으로 계산할 수 있는 작은 예제 (서울 요금표)"""
     seoul = TAXI_TABLES["seoul"]
@@ -199,8 +219,6 @@ def _check_examples() -> None:
 
 def _check_surcharges() -> None:
     """할증 (3단계)"""
-    from schemas import Place
-
     seoul = TAXI_TABLES["seoul"]
 
     # 시간대 경계: 시작 포함, 끝 미포함
