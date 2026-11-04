@@ -45,6 +45,18 @@ export function getRoutes(origin, destination) {
   })
 }
 
+// 택시 모드: getRoutes와 같은 경로에 직접 계산한 예상 택시비가 붙는다
+// departAt: Date (선택, 없으면 서버가 지금 시각으로 심야할증을 정한다)
+// 반환: [{ id, distance, duration, toll, path, kakao_taxi,
+//          fare: { base, distance_fare, time_fare, surcharge, total, night_rate, out_of_area_rate } }] (금액은 원)
+export function getTaxiRoutes(origin, destination, departAt) {
+  return request('/api/taxi', {
+    method: 'POST',
+    // toISOString()은 UTC("...Z")로 보낸다. 서버가 한국 시간으로 바꿔 판단한다
+    body: JSON.stringify({ origin, destination, depart_at: departAt?.toISOString() }),
+  })
+}
+
 // routes: getRoutes 결과, weights: { time, distance, toll }
 // 반환: { scores: { [id]: 0~100 }, best_id, reason }
 export function recommend(routes, weights) {
