@@ -33,8 +33,18 @@ class RouteMetrics(BaseModel):
     toll: int = Field(description="통행료 (원)")
 
 
+class Segment(BaseModel):
+    """도로 구간 하나 (카카오 roads[] 한 칸). 택시 요금의 거리·시간 병산에 쓴다 (docs/taxi.md 1단계)"""
+
+    distance: int = Field(description="구간 거리 (m)")
+    duration: int = Field(description="구간 소요 시간 (초)")
+
+
 class Route(RouteMetrics):
     path: list[tuple[float, float]] = Field(description="경로 좌표 [[lat, lng], ...]")
+    kakao_taxi: int | None = Field(default=None, description="카카오 예상 택시비 (원). 직접 계산한 값의 검증용")
+    # 서버 안에서 택시비 계산에만 쓰고 응답 JSON에는 넣지 않는다 (경로 하나에 수백 개라 크다)
+    segments: list[Segment] | None = Field(default=None, exclude=True)
 
 
 class Weights(BaseModel):

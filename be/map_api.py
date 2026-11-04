@@ -1,7 +1,7 @@
 import httpx
 
 from config import KAKAO_REST_API_KEY
-from schemas import Place, PlaceCandidate, Route
+from schemas import Place, PlaceCandidate, Route, Segment
 
 DIRECTIONS_URL = "https://apis-navi.kakaomobility.com/v1/directions"
 KEYWORD_SEARCH_URL = "https://dapi.kakao.com/v2/local/search/keyword.json"
@@ -40,9 +40,18 @@ def _to_path(sections: list[dict]) -> list[tuple[float, float]]:
     return path
 
 
-def get_routes(origin: Place, destination: Place) -> list[Route]:
-    """카카오 모빌리티 길찾기로 대안 경로까지 받아 Route 목록으로 변환한다."""
-    data = _kakao_get(
+def _to_segments(sections: list[dict]) -> list[Segment]:
+    # 택시 요금은 구간마다 빠른지(거리 요금) 느린지(시간 요금)로 달라지므로 summary 합계가 아니라 roads[]를 쓴다
+    return [
+        Segment(distance=road["distance"], duration=road["duration"])
+        for section in sections
+        for road in section["roads"]
+    ]
+
+
+def fetch_directions(origin: Place, destination: Place) -> dict:
+    """길찾기 API 원본 응답(JSON). 파싱은 parse_routes()가 한다 (저장한 응답으로 오프라인 검증하려고 나눴다)"""
+    return _kakao_get(
         DIRECTIONS_URL,
         {
             # 카카오는 "경도,위도" 순서
@@ -53,6 +62,9 @@ def get_routes(origin: Place, destination: Place) -> list[Route]:
         "길찾기",
     )
 
+
+def parse_routes(data: dict, with_segments: bool = False) -> list[Route]:
+    """길찾기 원본 응답 → Route 목록. with_segments=True면 택시비 계산용 구간 목록도 담는다"""
     routes = []
     for item in data["routes"]:
         # result_code가 0이 아니면 길을 못 찾은 경로 (summary가 없다)
@@ -66,6 +78,8 @@ def get_routes(origin: Place, destination: Place) -> list[Route]:
                 duration=summary["duration"],
                 toll=summary["fare"]["toll"],
                 path=_to_path(item["sections"]),
+                kakao_taxi=summary["fare"].get("taxi"),
+                segments=_to_segments(item["sections"]) if with_segments else None,
             )
         )
 
@@ -73,6 +87,11 @@ def get_routes(origin: Place, destination: Place) -> list[Route]:
         msg = data["routes"][0].get("result_msg", "경로 없음")
         raise MapApiError(f"경로를 찾지 못했습니다: {msg}")
     return routes
+
+
+def get_routes(origin: Place, destination: Place, with_segments: bool = False) -> list[Route]:
+    """카카오 모빌리티 길찾기로 대안 경로까지 받아 Route 목록으로 변환한다."""
+    return parse_routes(fetch_directions(origin, destination), with_segments)
 
 
 def search_places(query: str, lat: float | None = None, lng: float | None = None) -> list[PlaceCandidate]:
