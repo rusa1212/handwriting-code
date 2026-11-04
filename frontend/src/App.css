@@ -624,3 +624,91 @@
     cursor: default;
   }
 }
+
+/* 택시 모드 (docs/taxi.md 6단계) */
+
+/* [ 자가용 | 택시 ] 사이드바 맨 위 */
+.mode-toggle {
+  display: flex;
+  gap: 4px;
+  margin: 16px 20px 0;
+  padding: 4px;
+  background: var(--code-bg);
+  border-radius: 8px;
+}
+
+.mode {
+  flex: 1;
+  padding: 6px 0;
+  font: inherit;
+  font-size: 15px;
+  color: var(--text);
+  background: none;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+
+  &.active {
+    font-weight: 600;
+    color: #fff;
+    background: var(--accent);
+  }
+}
+
+/* 경로 카드 아래 줄: [추천] [최단시간] ← 이 경로를 돌려준 카카오 옵션 (docs/taxi.md 7-3) */
+.route-labels {
+  grid-column: 2 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.route-label {
+  padding: 0 6px;
+  font-size: 12px;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+/* 택시 카드: 16,200원 · 24분 ← 시간은 작게 */
+.route-sub {
+  font-size: 14px;
+  font-weight: normal;
+  color: var(--text);
+}
+
+/* 요금 내역: 기본요금 4,800원 / 거리 요금 ... / 예상 택시비 */
+.fare-table {
+  width: 100%;
+  margin-top: 8px;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  border-collapse: collapse;
+
+  th,
+  td {
+    padding: 6px 4px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  th {
+    font-weight: normal;
+    text-align: left;
+  }
+
+  td {
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .fare-total {
+    font-weight: 600;
+    color: var(--text-h);
+
+    th {
+      font-weight: 600;
+    }
+  }
+}

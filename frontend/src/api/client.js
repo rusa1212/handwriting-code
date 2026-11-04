@@ -45,14 +45,35 @@ export function getRoutes(origin, destination) {
   })
 }
 
-// routes: getRoutes 결과, weights: { time, distance, toll }
+// 택시 모드: getRoutes와 같은 경로에 직접 계산한 예상 택시비가 붙는다
+// departAt: Date (선택, 없으면 서버가 지금 시각으로 심야할증을 정한다)
+// 반환: [{ id, distance, duration, toll, path, kakao_taxi,
+//          fare: { base, distance_fare, time_fare, surcharge, total, night_rate, out_of_area_rate } }] (금액은 원)
+export function getTaxiRoutes(origin, destination, departAt) {
+  return request('/api/taxi', {
+    method: 'POST',
+    // toISOString()은 UTC("...Z")로 보낸다. 서버가 한국 시간으로 바꿔 판단한다
+    body: JSON.stringify({ origin, destination, depart_at: departAt?.toISOString() }),
+  })
+}
+
+// routes: getRoutes 또는 getTaxiRoutes 결과
+// weights: 자가용 { time, distance, toll }, 택시 { cost, time }
+// mode: 'car' | 'taxi'
 // 반환: { scores: { [id]: 0~100 }, best_id, reason }
-export function recommend(routes, weights) {
+export function recommend(routes, weights, mode = 'car') {
   // 점수 계산에 좌표는 필요 없으므로 빼고 보낸다 (경로 하나에 좌표가 수천 개)
-  const metrics = routes.map(({ id, distance, duration, toll }) => ({ id, distance, duration, toll }))
+  // 택시는 승객이 실제로 내는 돈(택시비 + 통행료)을 cost로 보낸다
+  const metrics = routes.map(({ id, distance, duration, toll, fare }) => ({
+    id,
+    distance,
+    duration,
+    toll,
+    ...(fare && { cost: fare.total + toll }),
+  }))
   return request('/api/recommend', {
     method: 'POST',
-    body: JSON.stringify({ routes: metrics, weights }),
+    body: JSON.stringify({ routes: metrics, weights, mode }),
   })
 }
 

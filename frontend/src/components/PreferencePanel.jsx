@@ -1,19 +1,17 @@
-// 슬라이더 순서와 이름. key는 백엔드 Weights 필드와 같다
-const FACTORS = [
-  { key: 'time', label: '시간' },
-  { key: 'distance', label: '거리' },
-  { key: 'toll', label: '통행료' },
-]
+import { CAR_FACTORS } from '../constants'
 
-// 선호도 슬라이더 3개. 값은 0~1 (0.1 단위), 상태는 RecommendPage가 가진다
-// 백엔드가 합으로 나눠 계산하므로 세 값의 합이 1이 아니어도 된다
-function PreferencePanel({ weights, onChange }) {
-  const total = FACTORS.reduce((sum, f) => sum + weights[f.key], 0)
+const COUNT_WORDS = { 2: '두', 3: '세' }
+
+// 선호도 슬라이더. 값은 0~1 (0.1 단위), 상태는 RecommendPage가 가진다
+// factors: 보여 줄 슬라이더 목록 (constants.js의 CAR_FACTORS / TAXI_FACTORS)
+// 백엔드가 합으로 나눠 계산하므로 값의 합이 1이 아니어도 된다
+function PreferencePanel({ weights, onChange, factors = CAR_FACTORS, title = '② 선호도' }) {
+  const total = factors.reduce((sum, f) => sum + weights[f.key], 0)
 
   return (
     <section className="panel">
-      <h2>② 선호도</h2>
-      {FACTORS.map((f) => (
+      <h2>{title}</h2>
+      {factors.map((f) => (
         <label key={f.key} className="field slider">
           <span>{f.label}</span>
           <input
@@ -30,7 +28,7 @@ function PreferencePanel({ weights, onChange }) {
           </output>
         </label>
       ))}
-      {total === 0 && <p className="hint">모두 0이면 세 요소를 똑같이 봅니다.</p>}
+      {total === 0 && <p className="hint">모두 0이면 {COUNT_WORDS[factors.length]} 요소를 똑같이 봅니다.</p>}
     </section>
   )
 }
