@@ -1,9 +1,11 @@
 """택시 모드 1단계 확인용 (docs/taxi.md 1-4)
 
-python taxi_sample.py            저장한 응답으로 확인 (없으면 API를 불러 저장)
-python taxi_sample.py --refresh  API를 다시 불러 저장한 뒤 확인
+python taxi_sample.py            저장한 응답 전부 확인 (하나도 없으면 API를 불러 저장)
+python taxi_sample.py --refresh  API를 새로 불러 새 파일로 저장한 뒤 전부 확인
 
-- 길찾기 원본 응답을 data/sample_directions.json에 저장해 2~4단계(요금 계산 검증)에서 API 없이 다시 쓴다
+- 길찾기 원본 응답을 data/taxi_samples/directions_YYYYMMDD_HHMM.json에 저장해 2~4단계(요금 계산 검증)에서 API 없이 다시 쓴다
+- 받을 때마다 받은 시각을 이름으로 한 새 파일을 만든다. 이전 파일은 덮어쓰지 않는다
+  (카카오 fare.taxi는 요청 시각의 심야할증이 들어간 값이라 낮·심야 샘플을 둘 다 남겨 비교한다)
 - 구간(roads[]) 거리·시간의 합이 경로 전체(summary)와 맞는지 본다
 """
 
@@ -11,12 +13,13 @@ import json
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import NamedTuple
 
 from map_api import fetch_directions, parse_routes
 from schemas import Place
 from taxi import KST
 
-SAMPLE_FILE = Path(__file__).parent / "data" / "sample_directions.json"
+SAMPLE_DIR = Path(__file__).parent / "data" / "taxi_samples"
 
 # 짧은 시내, 긴 시내, 통행료·시계외가 있는 경로를 섞는다
 SAMPLES = {
@@ -27,21 +30,38 @@ SAMPLES = {
 }
 
 
-def load_samples(refresh: bool = False) -> tuple[datetime, dict[str, dict]]:
-    """(받은 시각, 이름 → 길찾기 원본 응답). 파일이 없거나 refresh면 API를 불러 저장한다
+class SampleSet(NamedTuple):
+    """한 번에 받은 샘플 묶음"""
 
-    받은 시각을 같이 남기는 이유: 카카오 fare.taxi는 요청 시각의 심야할증이 들어간 값이다 (docs/taxi.md 2단계)
-    """
-    if SAMPLE_FILE.exists() and not refresh:
-        saved = json.loads(SAMPLE_FILE.read_text(encoding="utf-8"))
-        return datetime.fromisoformat(saved["fetched_at"]), saved["routes"]
+    file: Path
+    fetched_at: datetime  # 받은 시각 (한국 시간)
+    routes: dict[str, dict]  # 샘플 이름 → 길찾기 원본 응답
 
+
+def fetch_samples() -> SampleSet:
+    """API를 불러 받은 시각 이름의 새 파일로 저장한다. 같은 분에 이미 받은 파일이 있으면 덮어쓰지 않고 멈춘다"""
     fetched_at = datetime.now(KST).replace(microsecond=0)
+    file = SAMPLE_DIR / f"directions_{fetched_at:%Y%m%d_%H%M}.json"
+    if file.exists():
+        raise FileExistsError(f"{file.name}이 이미 있습니다. 1분 뒤에 다시 받으세요.")
+
     routes = {name: fetch_directions(o, d) for name, (o, d) in SAMPLES.items()}
-    saved = {"fetched_at": fetched_at.isoformat(), "routes": routes}
-    SAMPLE_FILE.write_text(json.dumps(saved, ensure_ascii=False), encoding="utf-8")
-    print(f"저장: {SAMPLE_FILE.name} ({SAMPLE_FILE.stat().st_size / 1024:.0f}KB, {fetched_at:%Y-%m-%d %H:%M})\n")
-    return fetched_at, routes
+    SAMPLE_DIR.mkdir(parents=True, exist_ok=True)
+    file.write_text(json.dumps({"fetched_at": fetched_at.isoformat(), "routes": routes}, ensure_ascii=False), encoding="utf-8")
+    print(f"저장: {file.name} ({file.stat().st_size / 1024:.0f}KB)\n")
+    return SampleSet(file, fetched_at, routes)
+
+
+def load_sample_sets() -> list[SampleSet]:
+    """저장한 샘플 묶음 전부, 받은 시각 순. 하나도 없으면 API를 불러 하나 만든다"""
+    files = sorted(SAMPLE_DIR.glob("directions_*.json"))
+    if not files:
+        return [fetch_samples()]
+    sets = []
+    for file in files:
+        saved = json.loads(file.read_text(encoding="utf-8"))
+        sets.append(SampleSet(file, datetime.fromisoformat(saved["fetched_at"]), saved["routes"]))
+    return sets
 
 
 def check(name: str, raw: dict) -> None:
@@ -64,8 +84,11 @@ def check(name: str, raw: dict) -> None:
 
 
 if __name__ == "__main__":
-    fetched_at, samples = load_samples(refresh="--refresh" in sys.argv)
-    print(f"받은 시각: {fetched_at:%Y-%m-%d %H:%M}")
-    for name, raw in samples.items():
-        check(name, raw)
-    print("\n확인 완료")
+    if "--refresh" in sys.argv:
+        fetch_samples()
+    for sample_set in load_sample_sets():
+        print(f"== {sample_set.file.name} (받은 시각 {sample_set.fetched_at:%Y-%m-%d %H:%M})")
+        for name, raw in sample_set.routes.items():
+            check(name, raw)
+        print()
+    print("확인 완료")

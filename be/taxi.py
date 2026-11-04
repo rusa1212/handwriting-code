@@ -245,28 +245,28 @@ def _check_surcharges() -> None:
 def _preview_samples() -> None:
     """저장한 카카오 응답으로 미리보기 (본격 비교는 4단계). 샘플을 받은 시각으로 심야할증을 넣는다"""
     from map_api import parse_routes
-    from taxi_sample import SAMPLES, load_samples
+    from taxi_sample import SAMPLES, load_sample_sets
 
     seoul = TAXI_TABLES["seoul"]
-    fetched_at, samples = load_samples()
-    night = night_rate(fetched_at, seoul)
-    print(f"  받은 시각 {fetched_at:%Y-%m-%d %H:%M} → 심야할증 {night:.0%}")
+    for sample_set in load_sample_sets():
+        night = night_rate(sample_set.fetched_at, seoul)
+        print(f"  == {sample_set.file.name}: 받은 시각 {sample_set.fetched_at:%Y-%m-%d %H:%M} → 심야할증 {night:.0%}")
 
-    for name, raw in samples.items():
-        origin, destination = SAMPLES[name]
-        out = out_of_area_rate(origin, destination, seoul)
-        for route in parse_routes(raw, with_segments=True):
-            kakao = route.kakao_taxi
-            fare = taxi_fare(route.segments, seoul, night=night, out_of_area=out)
-            line = (
-                f"  [{name} {route.id}] 직접 {fare.total:,}원 "
-                f"(기본 {fare.base:,} + 거리 {fare.distance_fare:,} + 시간 {fare.time_fare:,} + 할증 {fare.surcharge:,}) | "
-                f"카카오 {kakao:,}원 | 차이 {fare.total - kakao:+,}원 ({(fare.total - kakao) / kakao:+.1%})"
-            )
-            if out:  # 카카오는 시계외를 넣지 않는 것 같아서 (2단계) 빼고 계산한 값도 보여 준다
-                no_out = taxi_fare(route.segments, seoul, night=night).total
-                line += f" | 시계외 빼면 {no_out:,}원 ({(no_out - kakao) / kakao:+.1%})"
-            print(line)
+        for name, raw in sample_set.routes.items():
+            origin, destination = SAMPLES[name]
+            out = out_of_area_rate(origin, destination, seoul)
+            for route in parse_routes(raw, with_segments=True):
+                kakao = route.kakao_taxi
+                fare = taxi_fare(route.segments, seoul, night=night, out_of_area=out)
+                line = (
+                    f"  [{name} {route.id}] 직접 {fare.total:,}원 "
+                    f"(기본 {fare.base:,} + 거리 {fare.distance_fare:,} + 시간 {fare.time_fare:,} + 할증 {fare.surcharge:,}) | "
+                    f"카카오 {kakao:,}원 | 차이 {fare.total - kakao:+,}원 ({(fare.total - kakao) / kakao:+.1%})"
+                )
+                if out:  # 카카오는 시계외를 넣지 않는 것 같아서 (2단계) 빼고 계산한 값도 보여 준다
+                    no_out = taxi_fare(route.segments, seoul, night=night).total
+                    line += f" | 시계외 빼면 {no_out:,}원 ({(no_out - kakao) / kakao:+.1%})"
+                print(line)
 
 
 if __name__ == "__main__":
