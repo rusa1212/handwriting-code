@@ -75,7 +75,7 @@ def taxi(req: TaxiRequest) -> list[TaxiRoute]:
 # LEVEL 3: 받은 경로들에 사용자 가중치를 적용해 점수·추천 경로·이유를 돌려준다
 @app.post("/api/recommend")
 def recommend_route(req: RecommendRequest) -> RecommendResponse:
-    return recommend(req.routes, req.weights)
+    return recommend(req.routes, req.weights, req.mode)
 
 
 # LEVEL 4: 광주(전남대 주변) 도로망 그래프에서 직접 구현한 알고리즘으로 경로를 찾고 탐색 과정(visited_order)도 돌려준다

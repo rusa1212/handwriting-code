@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 # 프론트 ↔ 백엔드 API 약속 (docs/webpagePlan.md 7장)
 # 단위는 API 원본 그대로 둔다: 거리 m, 시간 초, 통행료 원. km·분 변환은 화면에서 한다.
@@ -32,6 +32,8 @@ class RouteMetrics(BaseModel):
     distance: int = Field(description="거리 (m)")
     duration: int = Field(description="소요 시간 (초)")
     toll: int = Field(description="통행료 (원)")
+    # 택시 모드에서만 쓴다. 승객이 실제로 내는 돈이라 통행료까지 더한다 (docs/taxi.md 7단계)
+    cost: int | None = Field(default=None, description="택시: 예상 택시비 + 통행료 (원)")
 
 
 class Segment(BaseModel):
@@ -44,6 +46,7 @@ class Segment(BaseModel):
 class Route(RouteMetrics):
     path: list[tuple[float, float]] = Field(description="경로 좌표 [[lat, lng], ...]")
     kakao_taxi: int | None = Field(default=None, description="카카오 예상 택시비 (원). 직접 계산한 값의 검증용")
+    labels: list[str] = Field(default=[], description='이 경로를 돌려준 카카오 옵션 ("추천", "최단시간", "최단거리")')
     # 서버 안에서 택시비 계산에만 쓰고 응답 JSON에는 넣지 않는다 (경로 하나에 수백 개라 크다)
     segments: list[Segment] | None = Field(default=None, exclude=True)
 
@@ -75,17 +78,26 @@ class TaxiRoute(Route):
 
 
 class Weights(BaseModel):
-    """사용자 선호도. 합이 1이 아니어도 된다 (계산할 때 합으로 나눈다)"""
+    """사용자 선호도. 합이 1이 아니어도 된다 (계산할 때 합으로 나눈다)
+    모드마다 쓰는 요소만 보낸다 (자가용: time·distance·toll, 택시: cost·time). 보내지 않은 요소는 0"""
 
-    time: float = Field(ge=0, description="시간 중요도")
-    distance: float = Field(ge=0, description="거리 중요도")
-    toll: float = Field(ge=0, description="통행료 중요도")
+    time: float = Field(default=0, ge=0, description="시간 중요도")
+    distance: float = Field(default=0, ge=0, description="거리 중요도")
+    toll: float = Field(default=0, ge=0, description="통행료 중요도")
+    cost: float = Field(default=0, ge=0, description="택시 요금(택시비 + 통행료) 중요도")
 
 
 class RecommendRequest(BaseModel):
     # Route를 그대로 보내도 path는 무시된다 (pydantic은 모르는 필드를 버린다)
     routes: list[RouteMetrics] = Field(min_length=1)
     weights: Weights
+    mode: Literal["car", "taxi"] = "car"
+
+    @model_validator(mode="after")
+    def _taxi_needs_cost(self):
+        if self.mode == "taxi" and any(r.cost is None for r in self.routes):
+            raise ValueError("택시 모드는 모든 경로에 cost(택시비 + 통행료)가 있어야 합니다")
+        return self
 
 
 class RecommendResponse(BaseModel):

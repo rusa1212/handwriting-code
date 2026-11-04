@@ -1,3 +1,5 @@
+from concurrent.futures import ThreadPoolExecutor
+
 import httpx
 
 from config import KAKAO_REST_API_KEY
@@ -49,7 +51,11 @@ def _to_segments(sections: list[dict]) -> list[Segment]:
     ]
 
 
-def fetch_directions(origin: Place, destination: Place) -> dict:
+# 카카오 길찾기 priority 옵션 → 카드에 보여줄 이름. 순서 = 경로 이름(A, B, C ...)을 붙이는 순서
+PRIORITIES = {"RECOMMEND": "추천", "TIME": "최단시간", "DISTANCE": "최단거리"}
+
+
+def fetch_directions(origin: Place, destination: Place, priority: str = "RECOMMEND") -> dict:
     """길찾기 API 원본 응답(JSON). 파싱은 parse_routes()가 한다 (저장한 응답으로 오프라인 검증하려고 나눴다)"""
     return _kakao_get(
         DIRECTIONS_URL,
@@ -58,13 +64,15 @@ def fetch_directions(origin: Place, destination: Place) -> dict:
             "origin": f"{origin.lng},{origin.lat}",
             "destination": f"{destination.lng},{destination.lat}",
             "alternatives": "true",
+            "priority": priority,
         },
         "길찾기",
     )
 
 
-def parse_routes(data: dict, with_segments: bool = False) -> list[Route]:
-    """길찾기 원본 응답 → Route 목록. with_segments=True면 택시비 계산용 구간 목록도 담는다"""
+def parse_routes(data: dict, with_segments: bool = False, label: str | None = None) -> list[Route]:
+    """길찾기 원본 응답 → Route 목록. with_segments=True면 택시비 계산용 구간 목록도 담는다
+    label: 이 응답을 받은 priority 옵션 이름 ("추천" 등). 경로의 labels에 넣는다"""
     routes = []
     for item in data["routes"]:
         # result_code가 0이 아니면 길을 못 찾은 경로 (summary가 없다)
@@ -80,6 +88,7 @@ def parse_routes(data: dict, with_segments: bool = False) -> list[Route]:
                 path=_to_path(item["sections"]),
                 kakao_taxi=summary["fare"].get("taxi"),
                 segments=_to_segments(item["sections"]) if with_segments else None,
+                labels=[label] if label else [],
             )
         )
 
@@ -89,9 +98,43 @@ def parse_routes(data: dict, with_segments: bool = False) -> list[Route]:
     return routes
 
 
+def merge_routes(groups: list[list[Route]]) -> list[Route]:
+    """여러 priority 응답의 경로를 하나로 합친다 (docs/taxi.md 7-3)
+
+    같은 길이 옵션마다 반복해서 오므로(예: 추천 = 최단시간) 거리·시간·통행료가 모두 같으면 같은 경로로 보고
+    처음 나온 것만 남긴 뒤 labels를 합친다. 이름(A, B, C ...)은 합친 뒤 순서대로 다시 붙인다
+    """
+    merged: dict[tuple[int, int, int], Route] = {}
+    for group in groups:
+        for route in group:
+            key = (route.distance, route.duration, route.toll)
+            if key in merged:
+                merged[key].labels += [lb for lb in route.labels if lb not in merged[key].labels]
+            else:
+                merged[key] = route
+    return [route.model_copy(update={"id": chr(ord("A") + i)}) for i, route in enumerate(merged.values())]
+
+
 def get_routes(origin: Place, destination: Place, with_segments: bool = False) -> list[Route]:
-    """카카오 모빌리티 길찾기로 대안 경로까지 받아 Route 목록으로 변환한다."""
-    return parse_routes(fetch_directions(origin, destination), with_segments)
+    """카카오 모빌리티 길찾기를 priority 옵션마다(추천·최단시간·최단거리) 불러 합친 Route 목록
+
+    alternatives=true만으로는 경로가 1개만 오는 경우가 많아 선호도를 바꿔도 비교할 것이 없다 (docs/taxi.md 1단계)
+    세 번 호출은 서로 기다릴 필요가 없으므로 동시에 보낸다. 일부만 실패하면 성공한 것만 쓰고, 전부 실패하면 첫 오류를 던진다
+    """
+
+    def fetch(priority: str) -> list[Route] | MapApiError:
+        try:
+            return parse_routes(fetch_directions(origin, destination, priority), with_segments, PRIORITIES[priority])
+        except MapApiError as e:
+            return e
+
+    with ThreadPoolExecutor(max_workers=len(PRIORITIES)) as pool:
+        results = list(pool.map(fetch, PRIORITIES))  # 순서는 PRIORITIES 순서 그대로
+
+    groups = [r for r in results if not isinstance(r, MapApiError)]
+    if not groups:
+        raise results[0]
+    return merge_routes(groups)
 
 
 def search_places(query: str, lat: float | None = None, lng: float | None = None) -> list[PlaceCandidate]:
