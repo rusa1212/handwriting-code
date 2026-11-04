@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { getRoutes, getTaxiRoutes, recommend, reverseGeocode } from '../api/client'
-import { KOREA_CENTER, KOREA_LEVEL } from '../constants'
+import { CAR_FACTORS, KOREA_CENTER, KOREA_LEVEL, TAXI_FACTORS } from '../constants'
 import { getCurrentPosition } from '../lib/geolocation'
 import { isSamePlace } from '../lib/place'
 import FareDetail from '../components/FareDetail'
@@ -23,7 +23,11 @@ function RecommendPage() {
   const [destination, setDestination] = useState(null)
   const [focus, setFocus] = useState(null) // 마지막으로 고른 장소: 지도를 그곳으로 확대한다
   const [routes, setRoutes] = useState([]) // API에서 받은 경로들
-  const [weights, setWeights] = useState({ time: 0.5, distance: 0.3, toll: 0.2 }) // 선호도 슬라이더
+  const [carWeights, setCarWeights] = useState({ time: 0.5, distance: 0.3, toll: 0.2 }) // 자가용 선호도 슬라이더
+  const [taxiWeights, setTaxiWeights] = useState({ cost: 0.5, time: 0.5 }) // 택시 선호도 슬라이더 (요금·시간)
+  // 모드마다 슬라이더 값을 따로 기억한다: 택시로 바꿨다 돌아와도 자가용 설정이 그대로 남는다
+  const weights = mode === 'taxi' ? taxiWeights : carWeights
+  const setWeights = mode === 'taxi' ? setTaxiWeights : setCarWeights
   const [result, setResult] = useState(null) // { scores, best_id, reason }
   const [recommendError, setRecommendError] = useState(null)
   const [selectedId, setSelectedId] = useState(null) // 지도에서 강조할 경로
@@ -40,10 +44,11 @@ function RecommendPage() {
   // 슬라이더를 끄는 동안 요청이 쏟아지지 않도록 마지막 변경 후 300ms 기다렸다 보낸다 (debounce)
   useEffect(() => {
     if (routes.length === 0) return // 결과 초기화는 검색할 때(handleSearch) 한다
-    if (mode === 'taxi') return // 택시 모드는 아직 추천 없이 요금만 보여 준다 (7단계)
+    // 모드를 바꾸면 routes가 비워졌다가 새로 검색되므로, 여기 오는 routes는 항상 지금 모드의 경로다
+    // (택시 경로에는 fare가 있어 cost를 계산할 수 있다)
     let ignore = false // 늦게 도착한 이전 요청의 응답은 버린다
     const timer = setTimeout(() => {
-      recommend(routes, weights)
+      recommend(routes, weights, mode)
         .then((data) => {
           if (ignore) return
           setResult(data)
@@ -226,18 +231,20 @@ function RecommendPage() {
         />
         {mode === 'taxi' ? (
           <>
+            <PreferencePanel weights={weights} onChange={setWeights} factors={TAXI_FACTORS} />
             <RouteList
-              title="② 경로 · 예상 택시비"
+              title="③ 경로 · 예상 택시비"
               routes={routes}
               selectedId={selectedId}
-              result={null}
+              result={result}
               onSelect={setSelectedId}
             />
-            <FareDetail route={routes.find((r) => r.id === selectedId)} />
+            <RecommendReason result={result} error={recommendError} />
+            <FareDetail route={routes.find((r) => r.id === selectedId)} title="⑤ 요금 내역" />
           </>
         ) : (
           <>
-            <PreferencePanel weights={weights} onChange={setWeights} />
+            <PreferencePanel weights={weights} onChange={setWeights} factors={CAR_FACTORS} />
             <RouteList routes={routes} selectedId={selectedId} result={result} onSelect={setSelectedId} />
             <RecommendReason result={result} error={recommendError} />
           </>
