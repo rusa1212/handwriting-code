@@ -13,7 +13,7 @@
 | 2 | 택시 요금 계산 모듈 (`be/taxi.py`): 기본·거리·시간 병산 요금 | 필수 | ✅ |
 | 3 | 할증 (심야, 시계외) + 출발 시각 | 필수 | ✅ |
 | 4 | 터미널 검증: 손으로 계산한 예제 + 카카오 `fare.taxi`와 오차 비교 | 필수 | ⬜ |
-| 5 | 백엔드 API `POST /api/taxi` | 필수 | ⬜ |
+| 5 | 백엔드 API `POST /api/taxi` | 필수 | ✅ |
 | 6 | 화면: 모드 토글, 자동 검색, 요금 카드·요금 내역 | 필수 | ⬜ |
 | 7 | 택시 경로 추천 (가장 싼 / 가장 빠른 / 균형) + 추천 이유 | 필수 | ⬜ |
 | 8 | 출발 시각 지정 (미래 운행 정보 API), 지역별 요금표 | 선택 | ⬜ |
@@ -72,7 +72,8 @@
 | 1-4 | 확인: 구간 거리 합 = `summary.distance`, 구간 시간 합 ≈ `summary.duration` | ✅ 완료 |
 
 - `roads[].duration`이 0인 구간(길이가 아주 짧은 구간)은 속도를 계산할 수 없으므로 거리 요금으로 센다.
-- 응답을 한 번 파일로 저장해 두고(`be/data/sample_directions.json`) 2~4단계에서 API를 다시 부르지 않고 쓴다. (키 사용량 절약, 결과 재현)
+- 응답을 파일로 저장해 두고 2~4단계에서 API를 다시 부르지 않고 쓴다. (키 사용량 절약, 결과 재현)
+  - 처음엔 `be/data/sample_directions.json` 한 파일이었다. 받을 때마다 덮어써서 심야 샘플이 사라지는 문제가 있어 **`be/data/taxi_samples/directions_YYYYMMDD_HHMM.json`** 으로 바꿨다 (받은 시각마다 새 파일, 덮어쓰지 않음). 첫 샘플은 `directions_20261104_2315.json`(심야 40%)으로 옮겼다.
 - 구현:
   - `get_routes()`를 `fetch_directions()`(API 호출, 원본 JSON) + `parse_routes(data, with_segments)`(파싱)로 나눴다. 저장한 응답을 API 없이 파싱하기 위해서다. `get_routes()`는 둘을 이어 부르므로 `/api/routes` 동작은 같다.
   - `Route.segments`는 `Field(exclude=True)`라 서버 안에서만 쓰고 응답 JSON에는 나가지 않는다. `kakao_taxi`는 응답에 나간다 (화면은 아직 쓰지 않음).
@@ -174,17 +175,37 @@
 | 4-2 | 저장한 카카오 응답 여러 개로 `직접 계산` vs `fare.taxi` 오차 표 출력 | ⬜ |
 | 4-3 | 오차가 큰 경우 원인 정리 (구간 속도 판단, 기본거리 처리, 할증 포함 여부) | ⬜ |
 
+- 낮 샘플: 22시 전에 `python taxi_sample.py --refresh` → `taxi_samples/`에 새 파일이 생기고 심야 샘플은 그대로 남는다. `python taxi.py`는 저장된 묶음을 **전부** 받은 시각의 할증으로 계산해 비교한다.
 - 4-1은 `assert`로 고정해 나중에 코드를 고쳐도 깨지지 않는지 확인한다.
 - 4-2 목표: 낮 시간 경로에서 **오차 ±5% 이내**. 카카오 `fare.taxi`가 할증·통행료를 포함하는지도 이 단계에서 확인해 문서에 적는다.
 
-## 5단계 ⬜ 백엔드 API (`main.py`)
+## 5단계 ✅ 백엔드 API (`main.py`)
 
 | 엔드포인트 | 요청 | 응답 |
 |---|---|---|
-| `POST /api/taxi` | `{ origin, destination, depart_at? }` | `[{ id, distance, duration, toll, path, fare: { base, distance_fare, time_fare, surcharge, total }, kakao_taxi }]` |
+| `POST /api/taxi` | `{ origin, destination, depart_at? }` | `[{ id, distance, duration, toll, path, kakao_taxi, fare: { base, distance_fare, time_fare, surcharge, total, night_rate, out_of_area_rate } }]` |
 
 - 내부적으로 `get_routes(..., with_segments=True)` → 경로마다 `taxi_fare()`. 구간 목록은 응답에 넣지 않는다 (화면에 필요 없고 크다).
 - 카카오 오류는 기존과 같이 502로 돌려준다.
+- 구현:
+  - `schemas.py`: `TaxiRequest`(`depart_at: datetime | None`), `TaxiFare`(`FareBreakdown`과 같은 필드), `TaxiRoute(Route)` + `fare`.
+  - `taxi.py`의 `taxi_routes(routes, origin, destination, depart_at, table)`: 이미 받은 경로에 요금을 붙이기만 한다 (API를 부르지 않는 순수 함수 → 저장 샘플로 검증 가능). 할증률은 출발 시각·출발지·목적지로 정하므로 경로마다 같다.
+  - `main.py`의 `/api/taxi`는 `get_routes()` + `taxi_routes()`를 이어 부를 뿐이다.
+  - `depart_at`: 생략하면 지금(한국 시간). `"2026-11-04T23:15"`처럼 시간대가 없으면 한국 시간, `Z`·`+09:00`이 붙으면 그 시간대를 한국 시간으로 바꿔 본다. 날짜로 읽을 수 없으면 422.
+  - 요금표는 아직 서울 하나라 **다른 지역도 서울 요금으로 계산**한다 (8단계 지역별 요금표에서 해결).
+- 확인 (`TestClient`, 저장 샘플로 `fetch_directions`를 바꿔 넣음):
+
+| 요청 | 결과 |
+|---|---|
+| 서울역→강남역, `depart_at` `"2026-11-04T23:15"` (시간대 없음) | 200, 16,200원, 심야 40%, 내역 합 = 합계, `segments` 없음 |
+| 같은 경로, `"2026-11-04T14:15:00Z"` (= KST 23:15) | 16,200원, 심야 40% |
+| 같은 경로, `"2026-11-05T14:00:00+09:00"` (낮) | 11,600원, 할증 없음 |
+| `depart_at` 생략 | 200 (지금 시각 기준) |
+| 서울역→인천공항, 낮 | 58,400원, 시계외 20%, 통행료 3,200원 별도 |
+| `depart_at` `"내일 저녁"` | 422 |
+| 카카오 오류 | 502, `detail`에 카카오 오류 메시지 |
+
+- 실제 API 호출 (2026-11-04 23시대): 서울역→강남역 16,200원 (카카오 18,000원). 거리는 같고 시간은 오히려 3초 줄었는데(1,421 → 1,418초) 카카오 값은 23:15 샘플(17,700원)보다 300원 올랐다. 우리는 구간 값만 쓰므로 같은 16,200원. 카카오가 요금을 어떻게 셈하는지(구간보다 촘촘한 내부 데이터, 다른 시간 요금 기준 등)는 응답만으로는 알 수 없다 → 4단계에서 낮 샘플을 여러 번 받아 차이가 일정한지 본다.
 
 ## 6단계 ⬜ 화면 (`RecommendPage.jsx` 외)
 
