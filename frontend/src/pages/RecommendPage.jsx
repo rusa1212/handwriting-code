@@ -1,15 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { getRoutes, recommend, reverseGeocode } from '../api/client'
+import { getRoutes, getTaxiRoutes, recommend, reverseGeocode } from '../api/client'
 import { KOREA_CENTER, KOREA_LEVEL } from '../constants'
 import { getCurrentPosition } from '../lib/geolocation'
+import { isSamePlace } from '../lib/place'
+import FareDetail from '../components/FareDetail'
 import MapView from '../components/MapView'
 import PreferencePanel from '../components/PreferencePanel'
 import RecommendReason from '../components/RecommendReason'
 import RouteList from '../components/RouteList'
 import SearchPanel from '../components/SearchPanel'
 
-// 경로 추천 탭 (LEVEL 1~3, 5)
+// 이동 수단: 자가용은 버튼으로 검색하고 선호도로 추천, 택시는 장소가 정해지면 바로 검색하고 예상 택시비를 보여 준다
+const MODES = [
+  { id: 'car', label: '자가용' },
+  { id: 'taxi', label: '택시' },
+]
+
+// 경로 추천 탭 (LEVEL 1~3, 5) + 택시 모드 (docs/taxi.md 6단계)
 function RecommendPage() {
+  const [mode, setMode] = useState('car') // 'car' | 'taxi'
   const [origin, setOrigin] = useState(null) // { name, lat, lng } 또는 null (검색해서 고르기 전)
   const [destination, setDestination] = useState(null)
   const [focus, setFocus] = useState(null) // 마지막으로 고른 장소: 지도를 그곳으로 확대한다
@@ -31,6 +40,7 @@ function RecommendPage() {
   // 슬라이더를 끄는 동안 요청이 쏟아지지 않도록 마지막 변경 후 300ms 기다렸다 보낸다 (debounce)
   useEffect(() => {
     if (routes.length === 0) return // 결과 초기화는 검색할 때(handleSearch) 한다
+    if (mode === 'taxi') return // 택시 모드는 아직 추천 없이 요금만 보여 준다 (7단계)
     let ignore = false // 늦게 도착한 이전 요청의 응답은 버린다
     const timer = setTimeout(() => {
       recommend(routes, weights)
@@ -50,7 +60,19 @@ function RecommendPage() {
       ignore = true
       clearTimeout(timer)
     }
-  }, [routes, weights])
+  }, [routes, weights, mode])
+
+  // 택시 모드: 출발·도착이 둘 다 정해지면 바로 검색한다
+  // 장소를 연달아 바꾸면 마지막 것만 검색하도록 300ms 기다린다 (debounce)
+  // 장소를 바꿀 때 clearResults()가 이전 검색 번호를 올려 두므로 늦게 온 이전 응답은 버려진다
+  const canAutoSearch = mode === 'taxi' && Boolean(origin && destination) && !isSamePlace(origin, destination)
+  useEffect(() => {
+    if (!canAutoSearch) return
+    const timer = setTimeout(handleSearch, 300)
+    return () => clearTimeout(timer)
+    // handleSearch는 렌더마다 새로 만들어지므로 넣지 않는다. 검색 조건(장소·모드)이 바뀔 때만 다시 검색한다
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [canAutoSearch, origin, destination])
 
   // 출발/도착 핀: 고르는 즉시(경로 검색 전에도) 지도에 보여준다
   // MapView는 markers가 바뀌면 다시 그리므로 장소가 바뀔 때만 새 배열을 만든다
@@ -134,6 +156,13 @@ function RecommendPage() {
     }
   }
 
+  // 모드를 바꾸면 이전 모드의 결과는 지운다 (택시 결과에는 요금이 붙어 있어 모양이 다르다)
+  function handleModeChange(next) {
+    if (next === mode) return
+    setMode(next)
+    clearResults()
+  }
+
   function handleSwap() {
     setOrigin(destination)
     setDestination(origin)
@@ -148,7 +177,7 @@ function RecommendPage() {
     setResult(null)
     setRecommendError(null)
     try {
-      const found = await getRoutes(origin, destination)
+      const found = mode === 'taxi' ? await getTaxiRoutes(origin, destination) : await getRoutes(origin, destination)
       if (searchId !== searchIdRef.current) return
       setRoutes(found)
       setSelectedId(found[0].id) // 추천이 도착하기 전까지는 첫 번째 경로를 선택
@@ -165,6 +194,19 @@ function RecommendPage() {
   return (
     <div className="page">
       <aside className="sidebar">
+        <div className="mode-toggle" role="group" aria-label="이동 수단">
+          {MODES.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              className={m.id === mode ? 'mode active' : 'mode'}
+              aria-pressed={m.id === mode}
+              onClick={() => handleModeChange(m.id)}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
         <SearchPanel
           origin={origin}
           destination={destination}
@@ -180,10 +222,26 @@ function RecommendPage() {
           loading={loading}
           error={error}
           routeCount={routes.length}
+          autoSearch={mode === 'taxi'}
         />
-        <PreferencePanel weights={weights} onChange={setWeights} />
-        <RouteList routes={routes} selectedId={selectedId} result={result} onSelect={setSelectedId} />
-        <RecommendReason result={result} error={recommendError} />
+        {mode === 'taxi' ? (
+          <>
+            <RouteList
+              title="② 경로 · 예상 택시비"
+              routes={routes}
+              selectedId={selectedId}
+              result={null}
+              onSelect={setSelectedId}
+            />
+            <FareDetail route={routes.find((r) => r.id === selectedId)} />
+          </>
+        ) : (
+          <>
+            <PreferencePanel weights={weights} onChange={setWeights} />
+            <RouteList routes={routes} selectedId={selectedId} result={result} onSelect={setSelectedId} />
+            <RecommendReason result={result} error={recommendError} />
+          </>
+        )}
       </aside>
       <MapView
         center={focus ?? KOREA_CENTER}
