@@ -57,14 +57,23 @@ export function getTaxiRoutes(origin, destination, departAt) {
   })
 }
 
-// routes: getRoutes 결과, weights: { time, distance, toll }
+// routes: getRoutes 또는 getTaxiRoutes 결과
+// weights: 자가용 { time, distance, toll }, 택시 { cost, time }
+// mode: 'car' | 'taxi'
 // 반환: { scores: { [id]: 0~100 }, best_id, reason }
-export function recommend(routes, weights) {
+export function recommend(routes, weights, mode = 'car') {
   // 점수 계산에 좌표는 필요 없으므로 빼고 보낸다 (경로 하나에 좌표가 수천 개)
-  const metrics = routes.map(({ id, distance, duration, toll }) => ({ id, distance, duration, toll }))
+  // 택시는 승객이 실제로 내는 돈(택시비 + 통행료)을 cost로 보낸다
+  const metrics = routes.map(({ id, distance, duration, toll, fare }) => ({
+    id,
+    distance,
+    duration,
+    toll,
+    ...(fare && { cost: fare.total + toll }),
+  }))
   return request('/api/recommend', {
     method: 'POST',
-    body: JSON.stringify({ routes: metrics, weights }),
+    body: JSON.stringify({ routes: metrics, weights, mode }),
   })
 }
 
