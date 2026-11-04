@@ -13,6 +13,11 @@ export function formatDuration(seconds) {
   return rest ? `${Math.floor(minutes / 60)}시간 ${rest}분` : `${minutes / 60}시간`
 }
 
+// 16200 → "16,200원" (0도 "0원". 택시비·합계처럼 "무료"가 어색한 금액)
+export function formatWon(won) {
+  return `${won.toLocaleString()}원`
+}
+
 // 2900 → "2,900원", 0 → "무료"
 export function formatToll(won) {
   return won ? `${won.toLocaleString()}원` : '무료'
